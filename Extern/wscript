@@ -1,0 +1,238 @@
+#! /usr/bin/env python
+# encoding: utf-8
+# Jordi Rovira i Bonet
+
+import sys
+import shutil
+import os
+from waflib.Context import Context
+from waflib.Build import BuildContext
+from waflib.Configure import ConfigurationContext
+from waflib.Scripting import Dist
+from waflib import Utils, Errors, Logs
+import csv
+import socket
+import waflib
+import glob
+import datetime
+import string
+import subprocess
+
+import urllib
+import zipfile
+
+import crosabuild
+
+
+#--------------------------------------------------------------------------------------------------
+# Download a file
+#--------------------------------------------------------------------------------------------------
+def download_file( ctx, url, sourceFile, targetFile ):
+    found = False
+    if ctx.options.download_proxy:
+        proxyFile = ctx.options.download_proxy+'/'+sourceFile
+        if os.path.exists(proxyFile):
+            shutil.copyfile(proxyFile,targetFile)
+            found = True
+
+    if not found:
+        urllib.urlretrieve( url+sourceFile, targetFile )
+
+
+
+#--------------------------------------------------------------------------------------------------
+# Download and configure boost
+#--------------------------------------------------------------------------------------------------
+def configure_boost( ctx, downloadPath ):
+
+    externPath = ctx.path.abspath()
+
+    ctx.start_msg("checking for local external library 'boost'")
+    targetPath = externPath+'/boost_1_52_0/'
+    d = os.path.dirname(targetPath)
+    if not os.path.exists(d):
+        ctx.end_msg("no", color="YELLOW")
+
+        zipFile = 'boost_1_52_0.7z'
+        targetZip = downloadPath+'/'+zipFile
+        if not os.path.exists( downloadPath ):
+            os.makedirs( downloadPath )
+
+        # See if we have downloaded it
+        if not os.path.exists(targetZip):
+            ctx.start_msg("downloading external library 'boost'")
+            try:
+                url = "http://switch.dl.sourceforge.net/project/boost/boost/1.52.0/"
+                download_file( ctx, url, zipFile, targetZip )
+                ctx.end_msg("ok", color="GREEN")
+            except ValueError:
+                print ValueError
+                ctx.end_msg("failed", color="RED")
+                ctx.fatal("Failed to download required external library 'boost'.")
+
+        # unzip it
+        crosabuild.find_7zip( ctx )
+
+        ctx.start_msg("uncompressing external library 'boost'")
+        try:
+            ctx.cmd_and_log(
+                [ ctx.env['7ZA'],'x',targetZip,'-o'+externPath ],
+                output=waflib.Context.STDOUT,
+                quiet=waflib.Context.BOTH )
+            ctx.end_msg("ok", color="GREEN")
+        except ValueError:
+            print ValueError
+            ctx.end_msg("failed", color="RED")
+            ctx.fatal("Failed to uncompress required external library 'boost'.")
+
+    else:
+        ctx.end_msg("yes", color="GREEN")
+
+
+#--------------------------------------------------------------------------------------------------
+# Build boost
+#--------------------------------------------------------------------------------------------------
+def build_boost( ctx ):
+
+    externPath = ctx.path.abspath()
+    targetPath = externPath+'/boost_1_52_0/'
+
+    # Build required boost libraries
+    stageDir = ctx.out_dir+'/boost/'+ctx.variant
+    boostLibs = [ 'filesystem', 'date_time', 'system', 'timer', 'program_options', 'random',
+                  'thread', 'chrono', 'iostreams' ]
+
+    boostLibPrefix = ''
+
+    boostToolset = None
+    if ctx.env.CXX_NAME=='msvc':
+        boostLibPrefix = 'lib'
+        if ctx.env.MSVC_VERSION==10.0:
+            boostToolset = 'msvc-10.0'
+        elif ctx.env.MSVC_VERSION==11.0:
+            boostToolset = 'msvc-11.0'
+    elif ctx.env.CXX_NAME=='gcc':
+        if ctx.env.TARGETPLATFORM=='OSX':
+            boostToolset = 'darwin'
+        else:
+            boostToolset = 'gcc'
+
+    if not os.path.exists(stageDir):
+        waflib.Logs.pprint('CYAN', "building external library 'boost'...", label='', sep='')
+        try:
+            olddir = os.getcwd()
+            os.chdir(targetPath)
+
+            boostArchitecture = ''
+            if ctx.env.TARGETARCH=='x86_64':
+                boostAddressModel = '64'
+            else:
+                boostAddressModel = '32'
+                boostArchitecture = 'x86'
+
+            if ctx.env.TARGETPLATFORM=='Windows' and not os.path.exists('/usr/bin/sh'):
+                b2Command  = [ 'b2.exe']
+                bootstrapCommand = ['bootstrap.bat']
+            else:
+                b2Command  = [ './b2']
+                bootstrapCommand = ['sh','bootstrap.sh']
+
+            if not os.path.exists(targetPath+b2Command[-1]):
+                ctx.cmd_and_log(
+                    bootstrapCommand,
+                    output=waflib.Context.STDOUT,
+                    #quiet=waflib.Context.BOTH
+                    )
+
+            command  = b2Command
+            command += [ '--stagedir='+stageDir, 'variant='+ctx.variant, 'link=shared' ]
+            command += [ '--build-dir='+stageDir]
+            command += [ '--layout=system']
+            command += [ 'threading=multi', 'address-model='+boostAddressModel, 'toolset='+boostToolset ]
+            if boostArchitecture!='':
+                command += [ 'architecture='+boostArchitecture ]
+            for lib in boostLibs:
+                command += [ '--with-'+lib ]
+
+            # print (' ').join(command)
+
+            ctx.cmd_and_log(
+                command,
+                output=waflib.Context.STDOUT,
+                quiet=waflib.Context.BOTH )
+
+            os.chdir(olddir)
+
+            waflib.Logs.pprint('GREEN', "ok", label='', sep='\n')
+        except:
+            waflib.Logs.pprint('RED', "failed", label='', sep='\n')
+            ctx.fatal("Failed to build required external library 'boost'.")
+
+
+    ctx.env.INCLUDES_BOOST = [targetPath]
+    ctx.env.DEFINES_BOOST = ['BOOST_ALL_NO_LIB']
+    ctx.env.LIBPATH_BOOST = [stageDir+'/lib']
+    ctx.env.LIB_BOOST = []
+    for lib in boostLibs:
+        ctx.env.LIB_BOOST += [ boostLibPrefix+'boost_'+lib ]
+
+    if ctx.env.TARGETPLATFORM=='Linux':
+        ctx.env.LIB_BOOST += ['pthread']
+
+
+#--------------------------------------------------------------------------------------------------
+# Download and build dependencies
+#--------------------------------------------------------------------------------------------------
+def configure(ctx):
+
+    externPath = ctx.path.abspath()
+    downloadPath = externPath+'/download/'
+
+    # RapidXML is included in the source distribution, due to necessary modifications
+    ctx.start_msg("checking for local external library 'rapidxml'")
+    d = os.path.dirname(externPath+'/rapidxml-1.13/')
+    if not os.path.exists(d):
+        ctx.end_msg("no", color="YELLOW")
+
+#        zipFile = 'rapidxml-1.13.zip'
+#        targetZip = downloadPath+'/'+zipFile
+#        if not os.path.exists( downloadPath ):
+#            os.makedirs( downloadPath )
+
+#        # See if we have downloaded it
+#        if not os.path.exists(targetZip):
+#            ctx.start_msg("downloading external library 'rapidxml'")
+#            try:
+#                    url = "http://heanet.dl.sourceforge.net/project/rapidxml/rapidxml/rapidxml%201.13/"
+#                    urllib.urlretrieve( url+zipFile, targetZip )
+#                    ctx.end_msg("ok", color="GREEN")
+#            except:
+#                    ctx.end_msg("failed", color="RED")
+#                    ctx.fatal("Failed to download required external library RapidXML.")
+
+#        with zipfile.ZipFile(targetZip, 'r') as myzip:
+#                myzip.extractall(externPath)
+
+    else:
+        ctx.end_msg("yes", color="GREEN")
+
+    ctx.env.INCLUDES_RAPIDXML = [externPath+'/rapidxml-1.13']
+
+    # Boost
+    configure_boost( ctx, downloadPath )
+
+
+
+
+
+#--------------------------------------------------------------------------------------------------
+#
+#--------------------------------------------------------------------------------------------------
+def build(ctx):
+
+    # Boost
+    build_boost( ctx )
+
+
+
+

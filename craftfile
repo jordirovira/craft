@@ -1,0 +1,28 @@
+// -*- C++ -*-
+// This is the craft file used to build craft itself
+
+#include <craft.h>
+#include <packages/boost.h>
+
+#include <iostream>
+
+void craft( Context& ctx )
+{
+    // Use a build folder different from the standard "build" while we coexist with other build
+    // methods like waf.
+    ctx.set_build_folder("build/craft");
+
+    // Set up boost libraries to be linked dynamically
+    packages::boost::craft( ctx, packages::boost::options::dynamic_link );
+
+    ctx.dynamic_library( "craft-core" )
+            .source( "craft.cpp platform.cpp" )
+            .use( "boost dl" )
+            ;
+
+    ctx.program( "craft" )
+            .source( "main.cpp" )
+            .use( "craft-core boost dl" )
+            ;
+}
+

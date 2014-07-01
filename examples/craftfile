@@ -1,0 +1,20 @@
+// -*- C++ -*-
+// Example craft file to build a simple program
+
+#include <craft.h>
+#include <iostream>
+
+void craft( Context& ctx )
+{
+    std::cout << "Hello from dynlib method!" << std::endl;
+
+    ctx.static_library( "test_lib" )
+            .source( "test_lib_a.cpp test_lib_b.cpp" );
+
+    ctx.program( "test_program" )
+            .source( "main.cpp" )
+            .use( "test_lib" );
+
+    std::cout << "Method complete!" << std::endl;
+}
+
