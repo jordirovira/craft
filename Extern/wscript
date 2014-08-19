@@ -145,7 +145,7 @@ def build_boost( ctx ):
                     )
 
             command  = b2Command
-            command += [ '--stagedir='+stageDir, 'variant='+ctx.variant, 'link=shared' ]
+            command += [ '--stagedir='+stageDir, 'variant='+ctx.variant, 'link=static', "cxxflags='-fPIC'" ]
             command += [ '--build-dir='+stageDir]
             command += [ '--layout=system']
             command += [ 'threading=multi', 'address-model='+boostAddressModel, 'toolset='+boostToolset ]
@@ -187,36 +187,6 @@ def configure(ctx):
 
     externPath = ctx.path.abspath()
     downloadPath = externPath+'/download/'
-
-    # RapidXML is included in the source distribution, due to necessary modifications
-    ctx.start_msg("checking for local external library 'rapidxml'")
-    d = os.path.dirname(externPath+'/rapidxml-1.13/')
-    if not os.path.exists(d):
-        ctx.end_msg("no", color="YELLOW")
-
-#        zipFile = 'rapidxml-1.13.zip'
-#        targetZip = downloadPath+'/'+zipFile
-#        if not os.path.exists( downloadPath ):
-#            os.makedirs( downloadPath )
-
-#        # See if we have downloaded it
-#        if not os.path.exists(targetZip):
-#            ctx.start_msg("downloading external library 'rapidxml'")
-#            try:
-#                    url = "http://heanet.dl.sourceforge.net/project/rapidxml/rapidxml/rapidxml%201.13/"
-#                    urllib.urlretrieve( url+zipFile, targetZip )
-#                    ctx.end_msg("ok", color="GREEN")
-#            except:
-#                    ctx.end_msg("failed", color="RED")
-#                    ctx.fatal("Failed to download required external library RapidXML.")
-
-#        with zipfile.ZipFile(targetZip, 'r') as myzip:
-#                myzip.extractall(externPath)
-
-    else:
-        ctx.end_msg("yes", color="GREEN")
-
-    ctx.env.INCLUDES_RAPIDXML = [externPath+'/rapidxml-1.13']
 
     # Boost
     configure_boost( ctx, downloadPath )

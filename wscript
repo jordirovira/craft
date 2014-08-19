@@ -76,7 +76,7 @@ def configure(ctx):
                                 'CoreAudio','AudioToolbox','AudioUnit','IOKit']
 
     elif ctx.env.TARGETPLATFORM=='Linux':
-        ctx.check(features='cxx cxxprogram', lib=['GL','GLU','dl'], cflags=['-Wall'], uselib_store='GL')
+        ctx.check(features='cxx cxxprogram', lib=['dl'], cflags=['-Wall'], uselib_store='GL')
 
     # Common compilation flags
     if ctx.env.CXX_NAME=='msvc':
@@ -192,6 +192,7 @@ def build(ctx):
         use      = ' craft-core BOOST',
         lib      = ' dl ',
         includes = '. Extern',
+        linkflags  = '-Wl,-rpath,$ORIGIN'
         )
 
 

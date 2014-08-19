@@ -40,22 +40,34 @@ void CppTarget::build( Context& ctx )
 
     NodeList objects;
 
+    // Build dependencies
+    for( size_t u=0; u<m_uses.size(); ++u )
+    {
+        std::shared_ptr<Target> usedTarget = ctx.get_target( m_uses[u] );
+        assert( usedTarget );
+        if (!usedTarget->Built())
+        {
+            usedTarget->build( ctx );
+        }
+    }
+
+    // Gather include paths
+    std::vector<std::string> includePaths;
+    for( size_t u=0; u<m_uses.size(); ++u )
+    {
+        std::shared_ptr<Target> usedTarget = ctx.get_target( m_uses[u] );
+        assert( usedTarget );
+        for( size_t p=0; p<usedTarget->m_export_includes.size(); ++p )
+        {
+            boost::split(includePaths, usedTarget->m_export_includes[p], boost::is_any_of("\t\n "));
+        }
+    }
+
+    // Build own sources
     for( size_t i=0; i<m_sources.size(); ++i )
     {
         std::vector<std::string> sourceFiles;
         boost::split(sourceFiles, m_sources[i], boost::is_any_of("\t\n "));
-
-        // Gather include paths
-        std::vector<std::string> includePaths;
-        for( size_t u=0; u<m_uses.size(); ++u )
-        {
-            std::shared_ptr<Target> usedTarget = ctx.get_target( m_uses[u] );
-            assert( usedTarget );
-            for( size_t p=0; p<usedTarget->m_export_includes.size(); ++p )
-            {
-                boost::split(includePaths, usedTarget->m_export_includes[p], boost::is_any_of("\t\n "));
-            }
-        }
 
         // Compile
         for( std::vector<std::string>::const_iterator it=sourceFiles.begin();
