@@ -7,7 +7,6 @@
 #include <vector>
 
 #include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
 #include <boost/process.hpp>
 
 
@@ -65,7 +64,8 @@ void CppTarget::build( Context& ctx )
         assert( usedTarget );
         for( size_t p=0; p<usedTarget->m_export_includes.size(); ++p )
         {
-            boost::split(includePaths, usedTarget->m_export_includes[p], boost::is_any_of("\t\n "));
+            //boost::split(includePaths, usedTarget->m_export_includes[p], boost::is_any_of("\t\n "));
+            split( usedTarget->m_export_includes[p], "\t\n ", includePaths );
         }
     }
 
@@ -75,7 +75,8 @@ void CppTarget::build( Context& ctx )
     for( size_t i=0; i<m_sources.size(); ++i )
     {
         std::vector<std::string> sourceFiles;
-        boost::split(sourceFiles, m_sources[i], boost::is_any_of("\t\n "));
+        //boost::split(sourceFiles, m_sources[i], boost::is_any_of("\t\n "));
+        split( m_sources[i], "\t\n ", sourceFiles );
 
         // Compile
         for( std::vector<std::string>::const_iterator it=sourceFiles.begin();
@@ -100,7 +101,8 @@ void ProgramTarget::link( Context& ctx, const NodeList& objects )
         assert( usedTarget );
         for( size_t p=0; p<usedTarget->m_export_library_options.size(); ++p )
         {
-            boost::split(libraryOptions, usedTarget->m_export_library_options[p], boost::is_any_of("\t\n "));
+            //boost::split(libraryOptions, usedTarget->m_export_library_options[p], boost::is_any_of("\t\n "));
+            split( usedTarget->m_export_library_options[p], "\t\n ", libraryOptions );
         }
     }
 
