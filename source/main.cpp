@@ -59,8 +59,9 @@ int main( int argc, const char** argv )
         // Compile it into a dynamic library
         std::shared_ptr<Context> ctx = Context::Create( true, false );
 
+        // At some point this should point at the craft environment
         ctx->extern_dynamic_library( "craft-core" )
-                .export_include( boost::filesystem::current_path().string()+"/.." );
+                .export_include( boost::filesystem::current_path().string()+"/../source" );
 
         auto& target = ctx->dynamic_library( "craft" )
                 .source( root+"craftfile" )

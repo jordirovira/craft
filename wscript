@@ -179,19 +179,19 @@ def build(ctx):
     ctx.recurse('Extern')
 
     ctx.shlib(
-        source   = 'craft.cpp platform.cpp',
+        source   = 'source/craft.cpp source/platform.cpp',
         target   = 'craft-core',
         use      = ' BOOST ',
         defines  = ' CRAFTCOREI_BUILD ',
-        includes = '. Extern Extern/boost-process',
+        includes = 'source Extern Extern/boost-process',
         )
 
     ctx.program(
-        source   = 'main.cpp',
+        source   = 'source/main.cpp',
         target   = 'craft',
         use      = ' craft-core BOOST',
         lib      = ' dl ',
-        includes = '. Extern',
+        includes = 'source Extern',
         linkflags  = '-Wl,-rpath,$ORIGIN'
         )
 

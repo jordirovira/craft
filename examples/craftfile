@@ -6,15 +6,13 @@
 
 void craft( Context& ctx )
 {
-    std::cout << "Hello from dynlib method!" << std::endl;
-
+    // Define a static library
     ctx.static_library( "test_lib" )
             .source( "test_lib_a.cpp test_lib_b.cpp" );
 
+    // Define a program
     ctx.program( "test_program" )
             .source( "main.cpp" )
             .use( "test_lib" );
-
-    std::cout << "Method complete!" << std::endl;
 }
 
