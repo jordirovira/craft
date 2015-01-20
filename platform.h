@@ -2,7 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <atomic>
 #include <memory>
 
 //! Dynamic link library import and export
@@ -24,9 +23,9 @@
 
 class Context;
 class Node;
-typedef std::vector<std::shared_ptr<Node>> NodeList;
+typedef std::vector< std::shared_ptr<Node> > NodeList;
 class Target;
-typedef std::vector<std::shared_ptr<Target>> TargetList;
+typedef std::vector< std::shared_ptr<Target> > TargetList;
 
 
 

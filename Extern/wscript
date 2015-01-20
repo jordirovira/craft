@@ -154,7 +154,7 @@ def build_boost( ctx ):
             for lib in boostLibs:
                 command += [ '--with-'+lib ]
 
-            # print (' ').join(command)
+            print (' ').join(command)
 
             ctx.cmd_and_log(
                 command,

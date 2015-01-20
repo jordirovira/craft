@@ -47,14 +47,14 @@ protected:
     //! Current folder below m_buildRoot where generated files will be stored.
     boost::filesystem::path m_currentPath;
 
-    std::vector<std::shared_ptr<Node>> m_nodes;
+    std::vector< std::shared_ptr<Node> > m_nodes;
     TargetList m_targets;
 
-    std::vector<std::shared_ptr<Platform>> m_platforms;
+    std::vector< std::shared_ptr<Platform> > m_platforms;
     std::shared_ptr<Platform> m_target_platform;
     std::shared_ptr<Platform> m_host_platform;
 
-    std::vector<std::shared_ptr<Toolchain>> m_toolchains;
+    std::vector< std::shared_ptr<Toolchain> > m_toolchains;
     std::shared_ptr<Toolchain> m_toolchain;
 
     std::shared_ptr<Version> m_version;

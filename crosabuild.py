@@ -34,7 +34,10 @@ def find_7zip( ctx ):
                         paths += [  os.environ['ProgramFiles']+'\\7-Zip' ]
                 if 'ProgramFiles(x86)' in os.environ:
                         paths += [ os.environ['ProgramFiles(x86)']+'\\7-Zip']
-                paths += ['/usr/bin' ]
+        else:
+            paths += ['/usr/bin' ]
+            paths += ['/usr/local/bin' ]
+
         try:
                 waflib.Configure.find_program( ctx, '7za', path_list=paths )
         except:

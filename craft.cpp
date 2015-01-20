@@ -1,6 +1,8 @@
 
 #include "craft_private.h"
 
+#include <axe.h>
+
 #include <string>
 #include <vector>
 
@@ -8,6 +10,8 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/process.hpp>
 
+
+AXE_IMPLEMENT()
 
 
 Target& Target::source( const std::string& files )
@@ -36,6 +40,8 @@ void Target::build( Context& ctx )
 
 void CppTarget::build( Context& ctx )
 {
+    AXE_LOG( "Build", axe::L_Debug, "Building CPP target." );
+
     m_built = true;
 
     NodeList objects;
@@ -62,6 +68,8 @@ void CppTarget::build( Context& ctx )
             boost::split(includePaths, usedTarget->m_export_includes[p], boost::is_any_of("\t\n "));
         }
     }
+
+    // Get dependencies
 
     // Build own sources
     for( size_t i=0; i<m_sources.size(); ++i )
