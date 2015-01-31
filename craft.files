@@ -40,5 +40,5 @@ craftfile
 packages/boost.h
 source/platform.cpp
 source/platform.h
-axe.h
+source/axe.h
 

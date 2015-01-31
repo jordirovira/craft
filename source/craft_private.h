@@ -20,7 +20,7 @@ public:
     virtual std::shared_ptr<Platform> get_current_target_platform() override;
     virtual std::shared_ptr<Toolchain> get_current_toolchain() override;
     virtual std::shared_ptr<Version> get_current_version() override;
-    virtual const char* get_current_path() override;
+    virtual const std::string& get_current_path() override;
     virtual std::shared_ptr<Target> get_target( const std::string& name ) override;
     virtual const TargetList& get_targets() override;
     virtual std::shared_ptr<FileNode> file( const std::string& absolutePath ) override;
@@ -35,7 +35,7 @@ protected:
     //! Root of the folder structure where generated files are stored during the build process
     //! It includes information about the version and toolchain: every combination of version and
     //! toolchain will have its own subfolder.
-    boost::filesystem::path m_buildRoot;
+    std::string m_buildRoot;
 
     //!
     bool m_buildFolderHasHost;
@@ -46,7 +46,7 @@ protected:
     std::string m_buildFolder;
 
     //! Current folder below m_buildRoot where generated files will be stored.
-    boost::filesystem::path m_currentPath;
+    std::string m_currentPath;
 
     std::vector< std::shared_ptr<Node> > m_nodes;
     TargetList m_targets;

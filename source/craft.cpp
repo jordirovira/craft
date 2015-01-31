@@ -1,16 +1,22 @@
 
 #include "craft_private.h"
 
-#include <axe.h>
+#include "axe.h"
+#include "platform.h"
 
 #include <string>
+#include <sstream>
 #include <vector>
 
-#include <boost/filesystem.hpp>
 #include <boost/process.hpp>
 
 
 AXE_IMPLEMENT()
+
+void craft_core_initialize( axe::Kernel* log_kernel )
+{
+    axe::s_kernel = log_kernel;
+}
 
 
 Target& Target::source( const std::string& files )
@@ -28,6 +34,18 @@ Target& Target::use( const std::string& targets )
 Target& Target::export_include( const std::string& paths )
 {
     m_export_includes.push_back( paths );
+    return *this;
+}
+
+Target& Target::export_library_options( const std::string& options )
+{
+    m_export_library_options.push_back( options );
+    return *this;
+}
+
+Target& Target::library_path( const std::string& path )
+{
+    m_library_path = path;
     return *this;
 }
 
@@ -101,50 +119,53 @@ void ProgramTarget::link( Context& ctx, const NodeList& objects )
         assert( usedTarget );
         for( size_t p=0; p<usedTarget->m_export_library_options.size(); ++p )
         {
-            //boost::split(libraryOptions, usedTarget->m_export_library_options[p], boost::is_any_of("\t\n "));
             split( usedTarget->m_export_library_options[p], "\t\n ", libraryOptions );
         }
     }
 
-    boost::filesystem::path target = ctx.get_current_path();
-    target /= m_name;
-    target = target.replace_extension("");
+    std::string target = ctx.get_current_path();
+    target += FileSeparator()+m_name;
+    target = FileReplaceExtension(target,"");
     Compiler compiler;
-    compiler.link_program( target.string(), objects, libraryOptions );
+    compiler.link_program( target, objects, libraryOptions );
 
     std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
-    targetNode->m_absolutePath = target.string();
+    targetNode->m_absolutePath = target;
     m_outputNodes.push_back( targetNode );
 }
 
 
 void StaticLibraryTarget::link( Context& ctx, const NodeList& objects )
 {
-    boost::filesystem::path target = ctx.get_current_path();
-    target /= m_name;
-    target = target.replace_extension(".a");
+    std::string target = ctx.get_current_path();
+    target += FileSeparator()+m_name;
+    target = FileReplaceExtension(target,"a");
     Compiler compiler;
-    compiler.link_static_library( target.string(), objects );
+    compiler.link_static_library( target, objects );
 
     std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
-    targetNode->m_absolutePath = target.string();
+    targetNode->m_absolutePath = target;
     m_outputNodes.push_back( targetNode );
 
-    m_export_library_options.push_back(target.string());
+    m_export_library_options.push_back(target);
 }
 
 
 void DynamicLibraryTarget::link( Context& ctx, const NodeList& objects )
 {
-    boost::filesystem::path target = ctx.get_current_path();
-    target /= m_name;
-    target = target.replace_extension(".so");
+    // Create output file name
+    std::string target = ctx.get_current_path();
+    target += FileSeparator()+m_name;
+    target = FileReplaceExtension(target,"so");
+
     Compiler compiler;
-    compiler.link_dynamic_library( target.string(), objects );
+    compiler.link_dynamic_library( ctx, target, objects, m_uses );
 
     std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
-    targetNode->m_absolutePath = target.string();
+    targetNode->m_absolutePath = target;
     m_outputNodes.push_back( targetNode );
+
+    m_export_library_options.push_back(target);
 }
 
 
@@ -187,39 +208,41 @@ void Compiler::compile( const std::string& source, const std::string& target, co
     processContext.stdout_behavior = boost::process::capture_stream();
     processContext.stderr_behavior = boost::process::capture_stream();
 
+    AXE_SCOPED_SECTION("compile");
+
     try
     {
-        std::cout<< "[compile]" << std::endl;
-        std::cout<< "[command] ";
-        for ( size_t a=0; a<args.size(); ++a)
-        {
-            std::cout<<" "<<args[a];
-        }
-        std::cout<< std::endl;
+        std::stringstream command;
+        for( auto s: args) { command << s<<" "; }
+        AXE_LOG( "command", axe::L_Verbose, command.str() );
 
         boost::process::child child = boost::process::launch( m_exec, args, processContext );
         //boost::process::status status =
                 child.wait();
 
-        boost::process::pistream& is = child.get_stdout();
-        std::string line;
-        while (std::getline(is, line))
         {
-            std::cout<< line;
+            AXE_SCOPED_SECTION("stdout");
+            boost::process::pistream& is = child.get_stdout();
+            std::string line;
+            while (std::getline(is, line))
+            {
+                AXE_LOG( "stdout", axe::L_Verbose, line );
+            }
         }
 
-        boost::process::pistream& ies = child.get_stderr();
-        while (std::getline(ies, line))
         {
-            std::cout<< line;
+            AXE_SCOPED_SECTION("stderr");
+            boost::process::pistream& ies = child.get_stderr();
+            std::string line;
+            while (std::getline(ies, line))
+            {
+                AXE_LOG( "stderr", axe::L_Verbose, line );
+            }
         }
-
-
-        std::cout<< "[/compile]" << std::endl;
     }
     catch(...)
     {
-        std::cout<< "Execution failed!" << std::endl;
+        AXE_LOG( "command", axe::L_Error, "Execution failed!" );
     }
 }
 
@@ -341,7 +364,10 @@ void Compiler::link_static_library( const std::string& target, const NodeList& o
 }
 
 
-void Compiler::link_dynamic_library( const std::string& target, const NodeList& objects )
+void Compiler::link_dynamic_library( Context& ctx,
+                                     const std::string& target,
+                                     const NodeList& objects,
+                                     const std::vector<std::string>& uses )
 {
     std::vector<std::string> args;
     args.push_back(m_exec);
@@ -354,6 +380,36 @@ void Compiler::link_dynamic_library( const std::string& target, const NodeList& 
     for (size_t i=0; i<objects.size(); ++i)
     {
          args.push_back(objects[i]->m_absolutePath);
+    }
+
+    for (size_t i=0; i<uses.size(); ++i)
+    {
+        Target* target = ctx.get_target( uses[i] ).get();
+        if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
+        {
+            args.push_back("-l");
+            args.push_back(lib->m_name);
+
+            // We need to add the search path for the library
+            std::string pathToLib = FileGetPath( lib->m_outputNodes[0]->m_absolutePath );
+            AXE_LOG( "Compiler", axe::L_Verbose, "Used Dynamic library output node [%s].", lib->m_outputNodes[0]->m_absolutePath.c_str() );
+            AXE_LOG( "Compiler", axe::L_Verbose, "Used Dynamic library ouput node path [%s].", pathToLib.c_str() );
+            args.push_back("-L"+pathToLib);
+        }
+        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget*>(target) )
+        {
+            if (lib->m_library_path.size())
+            {
+                args.push_back("-L"+lib->m_library_path);
+            }
+            args.push_back("-l");
+            args.push_back(lib->m_name);
+        }
+        else
+        {
+            // Unsuported use
+            AXE_LOG( "Compiler", axe::L_Error, "Dynamic library uses an unknown target type [%s].", target->m_name.c_str() );
+        }
     }
 
     boost::process::context processContext;
@@ -411,13 +467,14 @@ ContextImpl::ContextImpl( bool buildFolderHasHost,
     m_buildFolderHasHost = buildFolderHasHost;
     m_buildFolderHasTarget = buildFolderHasTarget;
 
-    m_buildRoot = boost::filesystem::current_path().string();
+    m_buildRoot = FileGetCurrentPath();
 
     // Initialize the versions
 
     // Initialize the platforms
-    m_platforms.push_back( std::make_shared<PlatformLinuxX32>() );
-    m_platforms.push_back( std::make_shared<PlatformLinuxX64>() );
+    m_platforms.push_back( std::make_shared<PlatformLinux32>() );
+    m_platforms.push_back( std::make_shared<PlatformLinux64>() );
+    m_platforms.push_back( std::make_shared<PlatformOSX64>() );
     m_host_platform = get_this_platform();
 
     // \todo See if a different target has been specified in the command line?
@@ -432,16 +489,16 @@ ContextImpl::ContextImpl( bool buildFolderHasHost,
 
 void ContextImpl::update_target_folder()
 {
-    m_currentPath = m_buildRoot/m_buildFolder;
+    m_currentPath = m_buildRoot+FileSeparator()+m_buildFolder;
 
     if (m_buildFolderHasHost)
     {
-        m_currentPath /= m_host_platform->name();
+        m_currentPath += FileSeparator()+m_host_platform->name();
     }
 
     if (m_buildFolderHasTarget)
     {
-        m_currentPath /= m_target_platform->name();
+        m_currentPath += FileSeparator()+m_target_platform->name();
     }
 }
 
@@ -495,15 +552,15 @@ std::shared_ptr<Version> ContextImpl::get_current_version()
 }
 
 
-const char* ContextImpl::get_current_path()
+const std::string& ContextImpl::get_current_path()
 {
-    return m_currentPath.c_str();
+    return m_currentPath;
 }
 
 
 std::shared_ptr<FileNode> ContextImpl::file( const std::string& absolutePath )
 {
-    assert( boost::filesystem::path(absolutePath).is_absolute() );
+    assert( FileIsAbsolute(absolutePath) );
 
     std::shared_ptr<FileNode> result = std::make_shared<FileNode>();
     result->m_absolutePath = absolutePath;
@@ -556,17 +613,17 @@ Target& ContextImpl::extern_dynamic_library( const std::string& name )
 
 void ContextImpl::object( const std::string& name, NodeList& objects, const std::vector<std::string>& includePaths )
 {
-    boost::filesystem::create_directories( m_currentPath );
+    FileCreateDirectories( m_currentPath );
 
-    boost::filesystem::path target = m_currentPath/name;
-    target = target.replace_extension(".o");
+    std::string target = m_currentPath+FileSeparator()+name;
+    target = FileReplaceExtension(target,"o");
     Compiler compiler;
-    compiler.compile( name, target.string(), includePaths );
+    compiler.compile( name, target, includePaths );
 
-    assert( boost::filesystem::exists(target) );
+    assert( FileExists(target) );
 
     std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
-    targetNode->m_absolutePath = target.string();
+    targetNode->m_absolutePath = target;
     objects.push_back( targetNode );
 }
 

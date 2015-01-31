@@ -87,7 +87,7 @@ def configure(ctx):
     elif ctx.env.TARGETPLATFORM=='OSX':
         #presume 'gcc' or compatible
         common_CFLAGS                   = ['-Wall', '-I/usr/X11/include']
-        common_CXXFLAGS                 = ['-Wall', '-Wc++11-extensions', '-I/usr/X11/include', '-fPIC']
+        common_CXXFLAGS                 = ['-Wall', '-std=c++11', '-I/usr/X11/include', '-fPIC']
         common_LINKFLAGS                = ['-L/usr/X11/lib','-framework', 'OpenGL']
 
         if ctx.env.TARGETARCH=='x86_32':

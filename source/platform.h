@@ -58,7 +58,7 @@ public:
 };
 
 
-class PlatformLinuxX32 : public PlatformLinux
+class PlatformLinux32 : public PlatformLinux
 {
 public:
 
@@ -69,7 +69,7 @@ public:
 };
 
 
-class PlatformLinuxX64 : public PlatformLinux
+class PlatformLinux64 : public PlatformLinux
 {
 public:
 
@@ -79,3 +79,33 @@ public:
 
 };
 
+
+class PlatformOSX : public Platform
+{
+public:
+
+    // Platform interface
+    virtual const char* os() const;
+    virtual bool is_this() const;
+
+};
+
+
+class PlatformOSX64 : public PlatformOSX
+{
+public:
+
+    // Platform interface
+    virtual const char* arch() const;
+    virtual bool is_this() const;
+
+};
+
+
+extern bool FileExists( const std::string& path );
+extern std::string FileGetCurrentPath();
+extern std::string FileSeparator();
+extern std::string FileReplaceExtension( const std::string& source, const std::string& extension );
+extern std::string FileGetPath( const std::string& source );
+extern bool FileIsAbsolute( const std::string& path );
+extern void FileCreateDirectories( const std::string& path );

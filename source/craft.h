@@ -11,7 +11,7 @@ void craft( Context& ctx );
 // with dlopen.
 extern "C" {
 
-    CRAFTCOREI_API void craft_entry()
+    CRAFTCOREI_API void craft_entry( const char* workspacePath )
     {
         std::shared_ptr<Context> context = Context::Create();
         Context& ctx = *context;
