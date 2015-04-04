@@ -2,7 +2,6 @@
 // Example craft file to build a simple program
 
 #include <craft.h>
-#include <iostream>
 
 void craft( Context& ctx )
 {

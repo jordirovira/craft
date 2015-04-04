@@ -19,8 +19,8 @@
 #ifndef BOOST_PROCESS_CONFIG_HPP 
 #define BOOST_PROCESS_CONFIG_HPP 
 
-#include <boost/config.hpp> 
-#include <boost/system/config.hpp> 
+#include <boost/config.hpp>
+#include <boost/system/config.hpp>
 
 #if defined(BOOST_POSIX_API) || defined(BOOST_PROCESS_DOXYGEN) 
 #  if !defined(BOOST_PROCESS_POSIX_PATH_MAX) 

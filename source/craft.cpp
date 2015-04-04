@@ -8,8 +8,6 @@
 #include <sstream>
 #include <vector>
 
-#include <boost/process.hpp>
-
 
 AXE_IMPLEMENT()
 
@@ -22,6 +20,13 @@ void craft_core_initialize( axe::Kernel* log_kernel )
 Target& Target::source( const std::string& files )
 {
     m_sources.push_back( files );
+    return *this;
+}
+
+
+Target& Target::include( const std::string& path )
+{
+    m_includes.push_back( path );
     return *this;
 }
 
@@ -82,9 +87,13 @@ void CppTarget::build( Context& ctx )
         assert( usedTarget );
         for( size_t p=0; p<usedTarget->m_export_includes.size(); ++p )
         {
-            //boost::split(includePaths, usedTarget->m_export_includes[p], boost::is_any_of("\t\n "));
             split( usedTarget->m_export_includes[p], "\t\n ", includePaths );
         }
+    }
+
+    for( size_t p=0; p<m_includes.size(); ++p )
+    {
+        split( m_includes[p], "\t\n ", includePaths );
     }
 
     // Get dependencies
@@ -93,7 +102,6 @@ void CppTarget::build( Context& ctx )
     for( size_t i=0; i<m_sources.size(); ++i )
     {
         std::vector<std::string> sourceFiles;
-        //boost::split(sourceFiles, m_sources[i], boost::is_any_of("\t\n "));
         split( m_sources[i], "\t\n ", sourceFiles );
 
         // Compile
@@ -126,6 +134,11 @@ void ProgramTarget::link( Context& ctx, const NodeList& objects )
     std::string target = ctx.get_current_path();
     target += FileSeparator()+m_name;
     target = FileReplaceExtension(target,"");
+
+    // Make sure the target folder exists
+    std::string targetPath = FileGetPath( target );
+    FileCreateDirectories( targetPath );
+
     Compiler compiler;
     compiler.link_program( target, objects, libraryOptions );
 
@@ -140,6 +153,11 @@ void StaticLibraryTarget::link( Context& ctx, const NodeList& objects )
     std::string target = ctx.get_current_path();
     target += FileSeparator()+m_name;
     target = FileReplaceExtension(target,"a");
+
+    // Make sure the target folder exists
+    std::string targetPath = FileGetPath( target );
+    FileCreateDirectories( targetPath );
+
     Compiler compiler;
     compiler.link_static_library( target, objects );
 
@@ -158,6 +176,10 @@ void DynamicLibraryTarget::link( Context& ctx, const NodeList& objects )
     target += FileSeparator()+m_name;
     target = FileReplaceExtension(target,"so");
 
+    // Make sure the target folder exists
+    std::string targetPath = FileGetPath( target );
+    FileCreateDirectories( targetPath );
+
     Compiler compiler;
     compiler.link_dynamic_library( ctx, target, objects, m_uses );
 
@@ -166,290 +188,6 @@ void DynamicLibraryTarget::link( Context& ctx, const NodeList& objects )
     m_outputNodes.push_back( targetNode );
 
     m_export_library_options.push_back(target);
-}
-
-
-
-
-Compiler::Compiler()
-{
-    m_exec="/usr/bin/g++";
-    m_arexec="/usr/bin/ar";
-}
-
-void Compiler::compile( const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
-{
-    std::vector<std::string> args;
-    args.push_back(m_exec);
-    args.push_back("-std=c++11");
-
-    // TODO: Not always, only for dynlibs
-    args.push_back("-fPIC");
-
-    args.push_back("-c");
-
-    // TODO: Force c++
-    args.push_back("-x");
-    args.push_back("c++");
-
-    args.push_back(source);
-    args.push_back("-o");
-    args.push_back(target);
-    args.push_back("-I");
-    args.push_back(".");
-
-    for (size_t i=0; i<includePaths.size(); ++i)
-    {
-        args.push_back("-I");
-        args.push_back(includePaths[i]);
-    }
-
-    boost::process::context processContext;
-    processContext.stdout_behavior = boost::process::capture_stream();
-    processContext.stderr_behavior = boost::process::capture_stream();
-
-    AXE_SCOPED_SECTION("compile");
-
-    try
-    {
-        std::stringstream command;
-        for( auto s: args) { command << s<<" "; }
-        AXE_LOG( "command", axe::L_Verbose, command.str() );
-
-        boost::process::child child = boost::process::launch( m_exec, args, processContext );
-        //boost::process::status status =
-                child.wait();
-
-        {
-            AXE_SCOPED_SECTION("stdout");
-            boost::process::pistream& is = child.get_stdout();
-            std::string line;
-            while (std::getline(is, line))
-            {
-                AXE_LOG( "stdout", axe::L_Verbose, line );
-            }
-        }
-
-        {
-            AXE_SCOPED_SECTION("stderr");
-            boost::process::pistream& ies = child.get_stderr();
-            std::string line;
-            while (std::getline(ies, line))
-            {
-                AXE_LOG( "stderr", axe::L_Verbose, line );
-            }
-        }
-    }
-    catch(...)
-    {
-        AXE_LOG( "command", axe::L_Error, "Execution failed!" );
-    }
-}
-
-
-void Compiler::link_program( const std::string& target,
-                             const NodeList& objects,
-                             const std::vector<std::string>& libraryOptions )
-{
-    std::vector<std::string> args;
-    args.push_back(m_exec);
-    args.push_back("-B");
-    args.push_back("/usr/bin");
-    args.push_back("-o");
-    args.push_back(target);
-
-    for (size_t i=0; i<objects.size(); ++i)
-    {
-         args.push_back(objects[i]->m_absolutePath);
-    }
-
-    for (size_t i=0; i<libraryOptions.size(); ++i)
-    {
-         args.push_back(libraryOptions[i]);
-    }
-
-    boost::process::context processContext;
-    processContext.stdout_behavior = boost::process::capture_stream();
-    processContext.stderr_behavior = boost::process::capture_stream();
-
-    try
-    {
-        std::cout<< "[link]" << std::endl;
-        std::cout<< "[command] ";
-        for ( size_t a=0; a<args.size(); ++a)
-        {
-            std::cout<<" "<<args[a];
-        }
-        std::cout<< std::endl;
-
-        boost::process::child child = boost::process::launch( m_exec, args, processContext );
-        //boost::process::status status =
-                child.wait();
-
-        boost::process::pistream& is = child.get_stdout();
-        std::string line;
-        while (std::getline(is, line))
-        {
-            std::cout << line << std::endl;
-        }
-
-        boost::process::pistream& ies = child.get_stderr();
-        while (std::getline(ies, line))
-        {
-            std::cout << line << std::endl;
-        }
-
-
-        std::cout<< "[/link]" << std::endl;
-    }
-    catch(...)
-    {
-        std::cout<< "Execution failed!" << std::endl;
-    }
-}
-
-
-void Compiler::link_static_library( const std::string& target, const NodeList& objects )
-{
-    std::vector<std::string> args;
-    args.push_back(m_arexec);
-    args.push_back("-r");
-    args.push_back("-c");
-    args.push_back("-s");
-    args.push_back(target);
-
-    for (size_t i=0; i<objects.size(); ++i)
-    {
-         args.push_back(objects[i]->m_absolutePath);
-    }
-
-    boost::process::context processContext;
-    processContext.stdout_behavior = boost::process::capture_stream();
-    processContext.stderr_behavior = boost::process::capture_stream();
-
-    try
-    {
-        std::cout<< "[link]" << std::endl;
-        std::cout<< "[command] ";
-        for ( size_t a=0; a<args.size(); ++a)
-        {
-            std::cout<<" "<<args[a];
-        }
-        std::cout<< std::endl;
-
-        boost::process::child child = boost::process::launch( m_arexec, args, processContext );
-        //boost::process::status status =
-                child.wait();
-
-        boost::process::pistream& is = child.get_stdout();
-        std::string line;
-        while (std::getline(is, line))
-        {
-            std::cout << line << std::endl;
-        }
-
-        boost::process::pistream& ies = child.get_stderr();
-        while (std::getline(ies, line))
-        {
-            std::cout << line << std::endl;
-        }
-
-
-        std::cout<< "[/link]" << std::endl;
-    }
-    catch(...)
-    {
-        std::cout<< "Execution failed!" << std::endl;
-    }
-}
-
-
-void Compiler::link_dynamic_library( Context& ctx,
-                                     const std::string& target,
-                                     const NodeList& objects,
-                                     const std::vector<std::string>& uses )
-{
-    std::vector<std::string> args;
-    args.push_back(m_exec);
-    args.push_back("-B");
-    args.push_back("/usr/bin");
-    args.push_back("-shared");
-    args.push_back("-o");
-    args.push_back(target);
-
-    for (size_t i=0; i<objects.size(); ++i)
-    {
-         args.push_back(objects[i]->m_absolutePath);
-    }
-
-    for (size_t i=0; i<uses.size(); ++i)
-    {
-        Target* target = ctx.get_target( uses[i] ).get();
-        if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
-        {
-            args.push_back("-l");
-            args.push_back(lib->m_name);
-
-            // We need to add the search path for the library
-            std::string pathToLib = FileGetPath( lib->m_outputNodes[0]->m_absolutePath );
-            AXE_LOG( "Compiler", axe::L_Verbose, "Used Dynamic library output node [%s].", lib->m_outputNodes[0]->m_absolutePath.c_str() );
-            AXE_LOG( "Compiler", axe::L_Verbose, "Used Dynamic library ouput node path [%s].", pathToLib.c_str() );
-            args.push_back("-L"+pathToLib);
-        }
-        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget*>(target) )
-        {
-            if (lib->m_library_path.size())
-            {
-                args.push_back("-L"+lib->m_library_path);
-            }
-            args.push_back("-l");
-            args.push_back(lib->m_name);
-        }
-        else
-        {
-            // Unsuported use
-            AXE_LOG( "Compiler", axe::L_Error, "Dynamic library uses an unknown target type [%s].", target->m_name.c_str() );
-        }
-    }
-
-    boost::process::context processContext;
-    processContext.stdout_behavior = boost::process::capture_stream();
-    processContext.stderr_behavior = boost::process::capture_stream();
-
-    try
-    {
-        std::cout<< "[link]" << std::endl;
-        std::cout<< "[command] ";
-        for ( size_t a=0; a<args.size(); ++a)
-        {
-            std::cout<<" "<<args[a];
-        }
-        std::cout<< std::endl;
-
-        boost::process::child child = boost::process::launch( m_exec, args, processContext );
-        //boost::process::status status =
-                child.wait();
-
-        boost::process::pistream& is = child.get_stdout();
-        std::string line;
-        while (std::getline(is, line))
-        {
-            std::cout << line << std::endl;
-        }
-
-        boost::process::pistream& ies = child.get_stderr();
-        while (std::getline(ies, line))
-        {
-            std::cout << line << std::endl;
-        }
-
-
-        std::cout<< "[/link]" << std::endl;
-    }
-    catch(...)
-    {
-        std::cout<< "Execution failed!" << std::endl;
-    }
 }
 
 
@@ -569,6 +307,17 @@ std::shared_ptr<FileNode> ContextImpl::file( const std::string& absolutePath )
 }
 
 
+Target& ContextImpl::target( const std::string& name )
+{
+    std::shared_ptr<Target> target = std::make_shared<Target>();
+    target->m_name = name;
+
+    m_targets.push_back( target );
+
+    return *target;
+}
+
+
 Target& ContextImpl::program( const std::string& name )
 {
     std::shared_ptr<Target> target = std::make_shared<ProgramTarget>();
@@ -617,6 +366,11 @@ void ContextImpl::object( const std::string& name, NodeList& objects, const std:
 
     std::string target = m_currentPath+FileSeparator()+name;
     target = FileReplaceExtension(target,"o");
+
+    // Make sure the target folder exists
+    std::string targetPath = FileGetPath( target );
+    FileCreateDirectories( targetPath );
+
     Compiler compiler;
     compiler.compile( name, target, includePaths );
 

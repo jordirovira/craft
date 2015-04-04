@@ -179,7 +179,7 @@ def build(ctx):
     ctx.recurse('Extern')
 
     ctx.shlib(
-        source   = 'source/craft.cpp source/platform.cpp',
+        source   = 'source/craft.cpp source/platform.cpp source/compiler.cpp',
         target   = 'craft-core',
         use      = ' BOOST ',
         defines  = ' CRAFTCOREI_BUILD ',

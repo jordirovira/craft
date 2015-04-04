@@ -86,7 +86,6 @@ int main( int argc, const char** argv )
         // At some point this should point at the craft environment
         ctx->extern_dynamic_library( "craft-core" )
                 .export_include( workspace+"/source" )
-                //.library_path(ctx->get_current_path())
                 .library_path( workspace+"/build/waf/OSX-x86_64-gcc6.0.0/debug/")
                 ;
 
@@ -98,7 +97,7 @@ int main( int argc, const char** argv )
 
         // Load and run the dynamic library entry method
         {
-            AXE_SCOPED_SECTION("Running craftfile");
+            AXE_SCOPED_SECTION_DETAILED(RunningCraftfile,"Running craftfile");
             std::string craftLibrary = target.GetOutputNodes()[0]->m_absolutePath;
             LoadAndRun( craftLibrary.c_str(), "craft_entry" );
         }

@@ -27,7 +27,7 @@
 
 extern void craft_core_initialize( axe::Kernel* log_kernel=nullptr );
 
-
+class Toolchain;
 class Context;
 class Node;
 typedef std::vector< std::shared_ptr<Node> > NodeList;
@@ -43,6 +43,7 @@ public:
 
     // Definition
     CRAFTCOREI_API Target& source( const std::string& files );
+    CRAFTCOREI_API Target& include( const std::string& paths );
     CRAFTCOREI_API Target& use( const std::string& files );
     CRAFTCOREI_API Target& export_include( const std::string& files );
     CRAFTCOREI_API Target& export_library_options( const std::string& options );
@@ -60,6 +61,9 @@ public:
 
     //! Source files required to build this target
     std::vector<std::string> m_sources;
+
+    //! Include directories required to build this target
+    std::vector<std::string> m_includes;
 
     //! Other targets whose output is used to build this target
     std::vector<std::string> m_uses;
@@ -129,40 +133,6 @@ class FileNode : public Node
 };
 
 
-class Compiler
-{
-public:
-
-    Compiler();
-
-    void compile( const std::string& source, const std::string& target, const std::vector<std::string>& includePaths );
-    void link_program( const std::string& target,
-                       const NodeList& objects,
-                       const std::vector<std::string>& libraryOptions );
-    void link_static_library( const std::string& target, const NodeList& objects );
-    void link_dynamic_library( Context& ctx,
-                               const std::string& target,
-                               const NodeList& objects,
-                               const std::vector<std::string>& uses);
-
-private:
-
-    std::string m_exec;
-    std::string m_arexec;
-
-};
-
-
-
-class Toolchain
-{
-public:
-
-    CRAFTCOREI_API virtual const char* name() const;
-
-};
-
-
 class Version
 {
 public:
@@ -204,6 +174,8 @@ public:
 
 
     // Target definition
+    CRAFTCOREI_API virtual Target& target( const std::string& name ) = 0;
+
     CRAFTCOREI_API virtual std::shared_ptr<FileNode> file( const std::string& absolutePath ) = 0;
 
     CRAFTCOREI_API virtual Target& program( const std::string& name ) = 0;

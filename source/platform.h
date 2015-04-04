@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 #include <memory>
 
 //! Dynamic link library import and export
@@ -106,6 +107,16 @@ extern bool FileExists( const std::string& path );
 extern std::string FileGetCurrentPath();
 extern std::string FileSeparator();
 extern std::string FileReplaceExtension( const std::string& source, const std::string& extension );
+
+//! Return the parent directory of the path (without the filename or last directory name if it
+//! doesn't have a path separator at the end)
 extern std::string FileGetPath( const std::string& source );
+
 extern bool FileIsAbsolute( const std::string& path );
 extern void FileCreateDirectories( const std::string& path );
+
+extern void Run( const std::string& command,
+                 const std::vector<std::string>& arguments,
+                 std::function<void(const char*)> out = nullptr,
+                 std::function<void(const char*)> err = nullptr );
+

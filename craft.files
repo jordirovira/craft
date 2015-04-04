@@ -7,8 +7,14 @@ source/main.cpp
 wscript
 crosabuild.py
 Extern/wscript
-source/craft.cpp
+source/platform.h
+source/axe.h
 source/craft_private.h
+source/craft_core.h
+source/compiler.h
+source/craft.cpp
+source/compiler.cpp
+source/platform.cpp
 Extern/boost-process/boost/process.hpp
 Extern/boost-process/boost/process/child.hpp
 Extern/boost-process/boost/process/config.hpp
@@ -34,11 +40,7 @@ Extern/boost-process/boost/process/detail/posix_ops.hpp
 Extern/boost-process/boost/process/detail/stream_info.hpp
 Extern/boost-process/boost/process/detail/systembuf.hpp
 Extern/boost-process/boost/process/detail/win32_ops.hpp
-source/craft_core.h
 examples/craftfile
 craftfile
 packages/boost.h
-source/platform.cpp
-source/platform.h
-source/axe.h
 

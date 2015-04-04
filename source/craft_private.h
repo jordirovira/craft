@@ -1,11 +1,11 @@
 #ifndef CRAFT_PRIVATE_H
 #define CRAFT_PRIVATE_H
 
-#include <craft_core.h>
+#include "craft_core.h"
+#include "compiler.h"
 
 #include <algorithm>
 
-#include <boost/process.hpp>
 
 class ContextImpl : public Context
 {
@@ -23,12 +23,13 @@ public:
     virtual const std::string& get_current_path() override;
     virtual std::shared_ptr<Target> get_target( const std::string& name ) override;
     virtual const TargetList& get_targets() override;
+    virtual Target& target( const std::string& name ) override;
     virtual std::shared_ptr<FileNode> file( const std::string& absolutePath ) override;
-    Target& program( const std::string& name ) override;
-    Target& static_library( const std::string& name ) override;
-    Target& dynamic_library( const std::string& name ) override;
-    Target& extern_dynamic_library( const std::string& name ) override;
-    void object(const std::string& name, NodeList& objects, const std::vector<std::string>& includePaths) override;
+    virtual Target& program( const std::string& name ) override;
+    virtual Target& static_library( const std::string& name ) override;
+    virtual Target& dynamic_library( const std::string& name ) override;
+    virtual Target& extern_dynamic_library( const std::string& name ) override;
+    virtual void object(const std::string& name, NodeList& objects, const std::vector<std::string>& includePaths) override;
 
 protected:
 

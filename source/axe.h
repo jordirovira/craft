@@ -162,6 +162,35 @@ namespace axe
     }
 
 
+    inline void log_lines( const char* category, Level level, const std::string& s )
+    {
+        if (s_kernel)
+        {
+            std::string delims="\n";
+            std::string::const_iterator b = s.begin();
+            std::string::const_iterator e = s.end();
+
+            std::string::const_iterator c = b;
+            while (c!=e)
+            {
+                if ( b!=c && std::find( delims.begin(), delims.end(), *c) != delims.end() )
+                {
+                    s_kernel->AddMessage( category, level, std::string(b,c) );
+                    b=c;
+                    ++b;
+                }
+                ++c;
+            }
+
+            // Add the last element
+            if (b!=c)
+            {
+                s_kernel->AddMessage( category, level, std::string(b,c) );
+            }
+        }
+    }
+
+
     inline void begin_section( const char* name )
     {
         if (s_kernel)
@@ -254,10 +283,17 @@ namespace axe
         }                                               \
     }
 
+#define AXE_LOG_LINES(CAT,LEVEL,TEXT)                   \
+    if (LEVEL<=AXE_COMPILE_LEVEL_LIMIT)                 \
+    {                                                   \
+        axe::log_lines( CAT, LEVEL, TEXT);              \
+    }
+
 #define AXE_DECLARE_SECTION(TAG,NAME)
-#define AXE_BEGIN_SECTION(TAG)  axe::begin_section(TAG);
-#define AXE_END_SECTION()       axe::end_section();
-#define AXE_SCOPED_SECTION(TAG) axe::ScopedSectionHelper(TAG)
+#define AXE_BEGIN_SECTION(TAG)                  axe::begin_section(TAG);
+#define AXE_END_SECTION()                       axe::end_section();
+#define AXE_SCOPED_SECTION(TAG)                 axe::ScopedSectionHelper axe_scoped_helper_##TAG(#TAG)
+#define AXE_SCOPED_SECTION_DETAILED(TAG,TEXT)   axe::ScopedSectionHelper axe_scoped_helper_##TAG(TEXT)
 
 #define AXE_DECLARE_CATEGORY(TAG,NAME)
 

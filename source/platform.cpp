@@ -6,8 +6,7 @@
 #include <string>
 #include <vector>
 
-#include <boost/process.hpp>
-
+#include <unistd.h>
 #include <sys/stat.h>
 
 
@@ -197,3 +196,170 @@ void FileCreateDirectories( const std::string& path )
         pos = new_pos;
     }
 }
+
+
+#include <unistd.h>
+#include <cstdio>
+
+void Run( const std::string& command,
+          const std::vector<std::string>& arguments,
+          std::function<void(const char*)> out,
+          std::function<void(const char*)> err )
+{
+
+    std::stringstream logstr;
+    logstr << command << " ";
+    for( auto s: arguments) { logstr << s << " "; }
+    AXE_LOG( "run", axe::L_Verbose, logstr.str() );
+
+#define CHILD_OUT_PIPE      0
+#define CHILD_ERR_PIPE      1
+
+    int pipes[2][2];
+
+    // pipes for parent to write and read
+    pipe(pipes[CHILD_OUT_PIPE]);
+    pipe(pipes[CHILD_ERR_PIPE]);
+
+    pid_t childPid = fork();
+    if (childPid<0)
+    {
+        // Failed to execute
+        assert( false );
+    }
+    else if (childPid==0)
+    {
+        // We are the child
+        dup2(pipes[CHILD_OUT_PIPE][1], STDOUT_FILENO);
+        dup2(pipes[CHILD_ERR_PIPE][1], STDERR_FILENO);
+
+        // Close fds not required by child. Also, we don't
+        // want the exec'ed program to know these existed
+        close(pipes[CHILD_OUT_PIPE][0]);
+        close(pipes[CHILD_ERR_PIPE][0]);
+        close(pipes[CHILD_OUT_PIPE][1]);
+        close(pipes[CHILD_ERR_PIPE][1]);
+
+        // Build a raw list of char* for the command and arguments
+        // const_casting is apparently safe here.
+        char** argv = new char* [arguments.size()+2];
+        argv[0] = const_cast<char*>(command.c_str());
+        argv[arguments.size()+1] = nullptr;
+        for (size_t a=0;a<arguments.size();++a)
+        {
+            argv[a+1] = const_cast<char*>(arguments[a].c_str());
+        }
+
+        // Call
+        execv(argv[0], argv);
+
+        delete[] argv;
+    }
+    else
+    {
+        // close fds not required by parent
+        close(pipes[CHILD_OUT_PIPE][1]);
+        close(pipes[CHILD_ERR_PIPE][1]);
+
+        bool finished = false;
+
+        while (!finished)
+        {
+            fd_set set;
+            struct timeval timeout;
+
+            // Initialize the file descriptor set.
+            FD_ZERO(&set);
+            FD_SET(pipes[CHILD_OUT_PIPE][0], &set);
+            FD_SET(pipes[CHILD_ERR_PIPE][0], &set);
+
+            // Initialize the timeout data structure.
+            timeout.tv_sec = 60;
+            timeout.tv_usec = 0;
+
+            // \todo Replace FD_SETSIZE for the max pipe index to optimise
+            int ret = select(FD_SETSIZE, &set, NULL, NULL, &timeout);
+
+            // a return value of 0 means that the time expired
+            // without any acitivity on the file descriptor
+            if (ret == 0)
+            {
+                printf("time out!");
+                finished = true;
+            }
+            else if (ret < 0)
+            {
+                // error occurred
+                finished = true;
+            }
+            else
+            {
+                char buffer[256];
+                int count;
+
+                // Read from child’s stdout
+                bool read_completed = false;
+                while (!read_completed)
+                {
+                    count = read(pipes[CHILD_OUT_PIPE][0], buffer, sizeof(buffer)-1);
+                    if (count >= 0)
+                    {
+                        buffer[count] = 0;
+
+                        if (out)
+                        {
+                            out(buffer);
+                        }
+                    }
+                    else
+                    {
+                        printf("IO Error\n");
+                        assert(false);
+                    }
+
+                    if ( count==0 )
+                    {
+                        read_completed = true;
+                    }
+                }
+
+                // Read from child’s stderr
+                read_completed = false;
+                while (!read_completed)
+                {
+                    count = read(pipes[CHILD_ERR_PIPE][0], buffer, sizeof(buffer)-1);
+                    if (count >= 0)
+                    {
+                        buffer[count] = 0;
+
+                        if (err)
+                        {
+                            err(buffer);
+                        }
+                    }
+                    else
+                    {
+                        printf("IO Error\n");
+                        assert(false);
+                    }
+
+                    if ( count==0 )
+                    {
+                        read_completed = true;
+                    }
+                }
+            }
+
+            int childStatus=0;
+            if (waitpid( childPid, &childStatus, WNOHANG )!=0 )
+            {
+                finished = true;
+            }
+        }
+
+        close(pipes[CHILD_OUT_PIPE][0]);
+        close(pipes[CHILD_ERR_PIPE][0]);
+    }
+}
+
+
