@@ -116,9 +116,13 @@ std::string FileGetCurrentPath()
 {
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL)
-        fprintf(stdout, "Current working dir: %s\n", cwd);
+    {
+        //fprintf(stdout, "Current working dir: %s\n", cwd);
+    }
     else
-        perror("getcwd() error");
+    {
+        cwd[0]=0;
+    }
 
     return cwd;
 }
@@ -170,9 +174,11 @@ void CreateDirectory( const char* directory )
     assert( status==0 );
 }
 
-void FileCreateDirectories( const std::string& path )
+bool FileCreateDirectories( const std::string& path )
 {
-    AXE_LOG( "Test", axe::L_Verbose, "FileCreateDirectories [%s]", path.c_str() );
+    //AXE_LOG( "Test", axe::L_Verbose, "FileCreateDirectories [%s]", path.c_str() );
+
+    bool anythingCreated = false;
 
     std::string::size_type pos = 0;
     while ( pos!=std::string::npos )
@@ -183,6 +189,7 @@ void FileCreateDirectories( const std::string& path )
             std::string directory = path.substr( 0, new_pos );
             if (!FileExists(directory))
             {
+                anythingCreated = true;
                 CreateDirectory( directory.c_str() );
             }
         }
@@ -190,11 +197,28 @@ void FileCreateDirectories( const std::string& path )
         {
             if (!FileExists(path))
             {
+                anythingCreated = true;
                 CreateDirectory( path.c_str() );
             }
         }
         pos = new_pos;
     }
+
+    return anythingCreated;
+}
+
+
+FileTime FileGetModificationTime( const std::string& path )
+{
+    FileTime result;
+
+    struct stat file_stat;
+    if (stat (path.c_str(), &file_stat) == 0)
+    {
+        result.m_time = file_stat.st_mtimespec;
+    }
+
+    return result;
 }
 
 

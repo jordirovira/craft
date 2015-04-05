@@ -105,11 +105,10 @@ void CppTarget::build( Context& ctx )
         split( m_sources[i], "\t\n ", sourceFiles );
 
         // Compile
-        for( std::vector<std::string>::const_iterator it=sourceFiles.begin();
-             it!= sourceFiles.end();
-             ++it )
+        for( const auto &s: sourceFiles )
         {
-            ctx.object( *it, objects, includePaths );
+            // Compile
+            ctx.object( s, objects, includePaths );
         }
     }
 
@@ -119,28 +118,44 @@ void CppTarget::build( Context& ctx )
 
 void ProgramTarget::link( Context& ctx, const NodeList& objects )
 {
-    // Gather library options
-    std::vector<std::string> libraryOptions;
-    for( size_t u=0; u<m_uses.size(); ++u )
-    {
-        std::shared_ptr<Target> usedTarget = ctx.get_target( m_uses[u] );
-        assert( usedTarget );
-        for( size_t p=0; p<usedTarget->m_export_library_options.size(); ++p )
-        {
-            split( usedTarget->m_export_library_options[p], "\t\n ", libraryOptions );
-        }
-    }
-
     std::string target = ctx.get_current_path();
     target += FileSeparator()+m_name;
     target = FileReplaceExtension(target,"");
 
+    // Calculate if we need to compile in this variable
+    bool outdated = false;
+
     // Make sure the target folder exists
     std::string targetPath = FileGetPath( target );
-    FileCreateDirectories( targetPath );
+    outdated = FileCreateDirectories( targetPath );
 
     Compiler compiler;
-    compiler.link_program( target, objects, libraryOptions );
+
+    // If we didn't create the folder and the file exists,
+    // see if we need to compile again or it is already up to date.
+    if ( !outdated && FileExists(target) )
+    {
+        FileTime target_time = FileGetModificationTime( target );
+
+        NodeList dependencies;
+        compiler.get_link_program_dependencies( dependencies, ctx, target, objects, m_uses );
+
+        for (const auto& n: dependencies)
+        {
+            FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
+            if (dep_time.IsNull() || dep_time>target_time)
+            {
+                outdated = true;
+                break;
+            }
+        }
+    }
+
+    // Compile if we really need to.
+    if (outdated)
+    {
+        compiler.link_program( ctx, target, objects, m_uses );
+    }
 
     std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
     targetNode->m_absolutePath = target;
@@ -154,12 +169,39 @@ void StaticLibraryTarget::link( Context& ctx, const NodeList& objects )
     target += FileSeparator()+m_name;
     target = FileReplaceExtension(target,"a");
 
+    bool outdated = false;
+
     // Make sure the target folder exists
     std::string targetPath = FileGetPath( target );
-    FileCreateDirectories( targetPath );
+    outdated = FileCreateDirectories( targetPath );
 
     Compiler compiler;
-    compiler.link_static_library( target, objects );
+
+    // If we didn't create the folder and the file exists,
+    // see if we need to link again or it is already up to date.
+    if ( !outdated && FileExists(target) )
+    {
+        FileTime target_time = FileGetModificationTime( target );
+
+        NodeList dependencies;
+        compiler.get_link_static_library_dependencies( dependencies, target, objects );
+
+        for (const auto& n: dependencies)
+        {
+            FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
+            if (dep_time.IsNull() || dep_time>target_time)
+            {
+                outdated = true;
+                break;
+            }
+        }
+    }
+
+    // Compile if we really need to.
+    if (outdated)
+    {
+        compiler.link_static_library( target, objects );
+    }
 
     std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
     targetNode->m_absolutePath = target;
@@ -176,12 +218,39 @@ void DynamicLibraryTarget::link( Context& ctx, const NodeList& objects )
     target += FileSeparator()+m_name;
     target = FileReplaceExtension(target,"so");
 
+    bool outdated = false;
+
     // Make sure the target folder exists
     std::string targetPath = FileGetPath( target );
-    FileCreateDirectories( targetPath );
+    outdated = FileCreateDirectories( targetPath );
 
     Compiler compiler;
-    compiler.link_dynamic_library( ctx, target, objects, m_uses );
+
+    // If we didn't create the folder and the file exists,
+    // see if we need to link again or it is already up to date.
+    if ( !outdated && FileExists(target) )
+    {
+        FileTime target_time = FileGetModificationTime( target );
+
+        NodeList dependencies;
+        compiler.get_link_dynamic_library_dependencies( dependencies, ctx, target, objects, m_uses );
+
+        for (const auto& n: dependencies)
+        {
+            FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
+            if (dep_time.IsNull() || dep_time>target_time)
+            {
+                outdated = true;
+                break;
+            }
+        }
+    }
+
+    // Compile if we really need to.
+    if (outdated)
+    {
+        compiler.link_dynamic_library( ctx, target, objects, m_uses );
+    }
 
     std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
     targetNode->m_absolutePath = target;
@@ -367,14 +436,42 @@ void ContextImpl::object( const std::string& name, NodeList& objects, const std:
     std::string target = m_currentPath+FileSeparator()+name;
     target = FileReplaceExtension(target,"o");
 
+    // Calculate if we need to compile in this variable
+    bool outdated = false;
+
     // Make sure the target folder exists
     std::string targetPath = FileGetPath( target );
-    FileCreateDirectories( targetPath );
+    outdated = FileCreateDirectories( targetPath );
 
     Compiler compiler;
-    compiler.compile( name, target, includePaths );
 
-    assert( FileExists(target) );
+    // If we didn't create the folder and the file exists,
+    // see if we need to compile again or it is already up to date.
+    if ( !outdated && FileExists(target) )
+    {
+        FileTime target_time = FileGetModificationTime( target );
+
+        NodeList dependencies;
+        compiler.get_compile_dependencies( dependencies, name, target, includePaths );
+
+        for (const auto& n: dependencies)
+        {
+            FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
+            if (dep_time.IsNull() || dep_time>target_time)
+            {
+                outdated = true;
+                break;
+            }
+        }
+    }
+
+    // Compile if we really need to.
+    if (outdated)
+    {
+        compiler.compile( name, target, includePaths );
+
+        assert( FileExists(target) );
+    }
 
     std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
     targetNode->m_absolutePath = target;

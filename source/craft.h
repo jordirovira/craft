@@ -9,7 +9,8 @@ void craft( Context& ctx );
 
 // Make sure the method will be defined with the suitable C linking style, so that we can find it
 // with dlopen.
-extern "C" {
+extern "C"
+{
 
     CRAFTCOREI_API void craft_entry( const char* workspacePath )
     {

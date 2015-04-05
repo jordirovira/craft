@@ -113,8 +113,62 @@ extern std::string FileReplaceExtension( const std::string& source, const std::s
 extern std::string FileGetPath( const std::string& source );
 
 extern bool FileIsAbsolute( const std::string& path );
-extern void FileCreateDirectories( const std::string& path );
 
+//! Create all the folders in the path if they don't exist already.
+//! \return true if any folder was actually created
+extern bool FileCreateDirectories( const std::string& path );
+
+//!
+//! \brief The FileTime struct
+//!
+struct FileTime
+{
+    FileTime()
+    {
+        m_time.tv_sec=0;
+        m_time.tv_nsec=0;
+    }
+
+    bool IsNull() const
+    {
+        return m_time.tv_sec==0 && m_time.tv_nsec==0;
+    }
+
+    timespec m_time;
+
+    friend bool operator<( const FileTime& left, const FileTime& right )
+    {
+        return left.m_time.tv_sec<right.m_time.tv_sec
+                || ( left.m_time.tv_sec==right.m_time.tv_sec
+                     &&
+                     left.m_time.tv_nsec<right.m_time.tv_nsec
+                     );
+    }
+
+    friend bool operator>( const FileTime& left, const FileTime& right )
+    {
+        return left.m_time.tv_sec>right.m_time.tv_sec
+                || ( left.m_time.tv_sec==right.m_time.tv_sec
+                     &&
+                     left.m_time.tv_nsec>right.m_time.tv_nsec
+                     );
+    }
+};
+
+//!
+//! \brief FileGetModificationTime
+//! \param path
+//! \return
+//!
+FileTime FileGetModificationTime( const std::string& path );
+
+//!
+//! \brief Run
+//! \param command
+//! \param arguments
+//! \param out
+//! \param err
+//!
 extern void Run( const std::string& command,
                  const std::vector<std::string>& arguments,
                  std::function<void(const char*)> out = nullptr,
