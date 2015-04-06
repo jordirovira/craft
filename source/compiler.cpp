@@ -14,10 +14,38 @@ Compiler::Compiler()
 {
     m_exec="/usr/bin/g++";
     m_arexec="/usr/bin/ar";
+
+    add_configuration("debug",{"-O0","-g"},{});
+    add_configuration("profile",{"-O3","-g"},{});
+    add_configuration("release",{"-O3"},{});
+    m_current_configuration=0;
 }
 
 
-void Compiler::build_argument_list( std::vector<std::string>& args, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
+void Compiler::set_configuration( const std::string& name )
+{
+    m_current_configuration = -1;
+    for (std::size_t i=0; i<m_configurations.size(); ++i)
+    {
+        if (m_configurations[i].m_name==name)
+        {
+            m_current_configuration = i;
+        }
+    }
+}
+
+
+void Compiler::add_configuration( const std::string& name, const std::vector<std::string>& compileFlags, const std::vector<std::string>& linkFlags )
+{
+    Configuration data;
+    data.m_name = name;
+    data.m_compileFlags = compileFlags;
+    data.m_linkFlags = linkFlags;
+    m_configurations.push_back(data);
+}
+
+
+void Compiler::build_compile_argument_list( std::vector<std::string>& args, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
 {
     args.push_back("-std=c++11");
 
@@ -29,6 +57,13 @@ void Compiler::build_argument_list( std::vector<std::string>& args, const std::s
     // TODO: Force c++
     args.push_back("-x");
     args.push_back("c++");
+
+    // Configuration flags
+    if (m_current_configuration>=0 && m_current_configuration<m_configurations.size())
+    {
+        const auto& f = m_configurations[m_current_configuration].m_compileFlags;
+        args.insert( args.end(), f.begin(), f.end() );
+    }
 
     args.push_back(source);
     args.push_back("-I");
@@ -47,7 +82,7 @@ void Compiler::get_compile_dependencies( NodeList& deps, const std::string& sour
     AXE_SCOPED_SECTION(get_deps);
 
     std::vector<std::string> args;
-    build_argument_list(args,source,target,includePaths);
+    build_compile_argument_list(args,source,target,includePaths);
 
     args.push_back("-MM");
 
@@ -114,7 +149,7 @@ void Compiler::compile( const std::string& source, const std::string& target, co
     AXE_SCOPED_SECTION(compile);
 
     std::vector<std::string> args;
-    build_argument_list(args,source,target,includePaths);
+    build_compile_argument_list(args,source,target,includePaths);
 
     args.push_back("-o");
     args.push_back(target);
@@ -160,7 +195,7 @@ void Compiler::get_link_program_dependencies( NodeList& deps,
         {
             deps.push_back(lib->m_outputNodes[0]);
         }
-        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget*>(target) )
+        else if ( /*auto lib =*/ dynamic_cast<ExternDynamicLibraryTarget*>(target) )
         {
         }
         else
@@ -300,7 +335,7 @@ void Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
         {
             deps.push_back(lib->m_outputNodes[0]);
         }
-        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget*>(target) )
+        else if ( /*auto lib =*/ dynamic_cast<ExternDynamicLibraryTarget*>(target) )
         {
         }
         else

@@ -19,17 +19,21 @@ public:
     virtual std::shared_ptr<Platform> get_host_platform() override;
     virtual std::shared_ptr<Platform> get_current_target_platform() override;
     virtual std::shared_ptr<Toolchain> get_current_toolchain() override;
-    virtual std::shared_ptr<Version> get_current_version() override;
+    virtual bool has_configuration( const std::string& name ) const override;
+    virtual void set_current_configuration( const std::string& name ) override;
+    virtual const std::string& get_current_configuration() const override;
+    virtual const std::vector<std::string>& get_default_configurations() const override;
     virtual const std::string& get_current_path() override;
     virtual std::shared_ptr<Target> get_target( const std::string& name ) override;
     virtual const TargetList& get_targets() override;
-    virtual Target& target( const std::string& name ) override;
+    virtual TargetList get_default_targets() override;
     virtual std::shared_ptr<FileNode> file( const std::string& absolutePath ) override;
     virtual Target& program( const std::string& name ) override;
     virtual Target& static_library( const std::string& name ) override;
     virtual Target& dynamic_library( const std::string& name ) override;
     virtual Target& extern_dynamic_library( const std::string& name ) override;
     virtual void object(const std::string& name, NodeList& objects, const std::vector<std::string>& includePaths) override;
+    virtual void run() override;
 
 protected:
 
@@ -59,7 +63,14 @@ protected:
     std::vector< std::shared_ptr<Toolchain> > m_toolchains;
     std::shared_ptr<Toolchain> m_toolchain;
 
-    std::shared_ptr<Version> m_version;
+    //! Configurations that can be built for every target
+    std::vector<std::string> m_configurations;
+
+    //!
+    std::vector<std::string> m_default_configurations;
+
+    //!
+    std::string m_current_configuration;
 
 private:
 

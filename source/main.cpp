@@ -18,7 +18,7 @@ AXE_IMPLEMENT();
 
 
 // TODO: Move to platform
-void LoadAndRun( const char* lib, const char* methodName )
+void LoadAndRun( const char* lib, const char* methodName, const char* workspace, const char** configurations )
 {
     // Load the dynamic library
     void *libHandle = dlopen( lib, RTLD_LAZY | RTLD_LOCAL );
@@ -35,18 +35,17 @@ void LoadAndRun( const char* lib, const char* methodName )
     assert( method );
 
     // Run it
-    typedef void (*CraftMethod)( const char* workspace );
+    typedef void (*CraftMethod)( const char* workspace, const char** configurations );
     CraftMethod craftMethod = (CraftMethod)method;
-    craftMethod("..");
+    craftMethod(workspace, configurations);
 }
 
 
 int main( int argc, const char** argv )
 {
     AXE_INITIALISE("craft",0);
-    craft_core_initialize( axe::s_kernel );
 
-    AXE_LOG( "Test", axe::L_Verbose, "Hello axe!" );
+    craft_core_initialize( axe::s_kernel );
 
     // Build the craft framework if necessary
 //    std::string env = "./env";
@@ -57,19 +56,43 @@ int main( int argc, const char** argv )
 
     // Parse arguments
     std::string workspace = FileGetCurrentPath();
-    int arg = 0;
-    while (arg<argc)
+    std::vector<const char*> configurations;
     {
-        if ( argv[arg]==std::string("-w") )
+        int arg = 0;
+        while (arg<argc)
         {
-            if (arg+1<argc)
+            // Workspace
+            if ( argv[arg]==std::string("-w") )
             {
-                workspace = argv[arg+1];
-                ++arg;
+                if (arg+1<argc)
+                {
+                    // Do we really have a workspace, or do we have another option?
+                    if (argv[arg+1][0]!='-')
+                    {
+                        workspace = argv[arg+1];
+                        ++arg;
+                    }
+                }
             }
+            else if (argv[arg]==std::string("-c") )
+            {
+                if (arg+1<argc)
+                {
+                    // Do we really have a configuration, or do we have another option?
+                    if (argv[arg+1][0]!='-')
+                    {
+                        configurations.push_back( argv[arg+1] );
+                        ++arg;
+                    }
+                }
+            }
+
+            ++arg;
         }
-        ++arg;
+
+        configurations.push_back( nullptr );
     }
+
 
     // Locate the craft file
     std::string root = "./";
@@ -82,8 +105,9 @@ int main( int argc, const char** argv )
     {
         // Compile it into a dynamic library
         std::shared_ptr<Context> ctx = Context::Create( true, false );
+        ctx->set_current_configuration( "debug" );
 
-        // At some point this should point at the craft environment
+        //
         ctx->extern_dynamic_library( "craft-core" )
                 .export_include( workspace+"/source" )
                 .library_path( workspace+"/build/waf/OSX-x86_64-gcc6.0.0/debug/")
@@ -99,7 +123,7 @@ int main( int argc, const char** argv )
         {
             AXE_SCOPED_SECTION_DETAILED(RunningCraftfile,"Running craftfile");
             std::string craftLibrary = target.GetOutputNodes()[0]->m_absolutePath;
-            LoadAndRun( craftLibrary.c_str(), "craft_entry" );
+            LoadAndRun( craftLibrary.c_str(), "craft_entry", workspace.c_str(), &configurations[0] );
         }
     }
 

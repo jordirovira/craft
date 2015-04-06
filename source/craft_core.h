@@ -39,8 +39,6 @@ class Target
 {
 public:
 
-    Target() { m_built=false; }
-
     // Definition
     CRAFTCOREI_API Target& source( const std::string& files );
     CRAFTCOREI_API Target& include( const std::string& paths );
@@ -48,16 +46,17 @@ public:
     CRAFTCOREI_API Target& export_include( const std::string& files );
     CRAFTCOREI_API Target& export_library_options( const std::string& options );
     CRAFTCOREI_API Target& library_path( const std::string& path );
+    CRAFTCOREI_API Target& is_default( bool enabled=true );
 
     // Operation
-    CRAFTCOREI_API virtual void build( Context& ctx );
+    CRAFTCOREI_API virtual void build( Context& ctx ) = 0;
 
     CRAFTCOREI_API const NodeList& GetOutputNodes() { return m_outputNodes; }
 
-    CRAFTCOREI_API bool Built() const { return m_built; }
-
     std::string m_name;
-    bool m_built;
+
+    //!
+    bool m_is_default = false;
 
     //! Source files required to build this target
     std::vector<std::string> m_sources;
@@ -83,6 +82,9 @@ public:
 class ExternDynamicLibraryTarget : public Target
 {
 public:
+
+    // Operation
+    virtual void build( Context& ) override {}
 
 };
 
@@ -163,18 +165,23 @@ public:
 
     CRAFTCOREI_API virtual std::shared_ptr<Toolchain> get_current_toolchain() = 0;
 
-    CRAFTCOREI_API virtual std::shared_ptr<Version> get_current_version() = 0;
-
     CRAFTCOREI_API virtual const std::string& get_current_path() = 0;
 
     CRAFTCOREI_API virtual std::shared_ptr<Target> get_target( const std::string& name ) = 0;
 
     CRAFTCOREI_API virtual const TargetList& get_targets() = 0;
+    CRAFTCOREI_API virtual TargetList get_default_targets() = 0;
 
+    CRAFTCOREI_API virtual bool has_configuration( const std::string& name ) const = 0;
+
+    // Execution control
+    // \todo hide when defining targets in a craftfile
+    CRAFTCOREI_API virtual void set_current_configuration( const std::string& name ) = 0;
+    CRAFTCOREI_API virtual const std::string& get_current_configuration() const = 0;
+    CRAFTCOREI_API virtual const std::vector<std::string>& get_default_configurations() const = 0;
+    CRAFTCOREI_API virtual void run()=0;
 
     // Target definition
-    CRAFTCOREI_API virtual Target& target( const std::string& name ) = 0;
-
     CRAFTCOREI_API virtual std::shared_ptr<FileNode> file( const std::string& absolutePath ) = 0;
 
     CRAFTCOREI_API virtual Target& program( const std::string& name ) = 0;

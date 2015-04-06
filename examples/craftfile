@@ -12,6 +12,7 @@ void craft( Context& ctx )
     // Define a program
     ctx.program( "test_program" )
             .source( "main.cpp" )
-            .use( "test_lib" );
+            .use( "test_lib" )
+            .is_default();
 }
 

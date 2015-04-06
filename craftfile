@@ -2,9 +2,6 @@
 // This is the craft file used to build craft itself
 
 #include <craft.h>
-#include <packages/boost.h>
-
-#include <iostream>
 
 void craft( Context& ctx )
 {
@@ -13,16 +10,16 @@ void craft( Context& ctx )
     ctx.set_build_folder("build/craft");
 
     // Set up boost libraries to be linked dynamically
-    packages::boost::craft( ctx, packages::boost::options::dynamic_link );
+    //packages::boost::craft( ctx, packages::boost::options::dynamic_link );
 
     ctx.dynamic_library( "craft-core" )
             .source( "source/craft.cpp source/platform.cpp source/compiler.cpp" )
-            .include( "Extern/boost-process" )
             ;
 
     ctx.program( "craft" )
             .source( "source/main.cpp" )
             .use( "craft-core" )
+            .is_default()
             ;
 }
 

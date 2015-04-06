@@ -15,6 +15,9 @@ public:
 
     Compiler();
 
+    void set_configuration( const std::string& name );
+    void add_configuration( const std::string& name, const std::vector<std::string>& compileFlags, const std::vector<std::string>& linkFlags );
+
     //!
     //! \brief get_compile_dependencies
     //! \param deps
@@ -58,12 +61,24 @@ public:
                                const NodeList& objects,
                                const std::vector<std::string>& uses);
 
+
 private:
 
     std::string m_exec;
     std::string m_arexec;
 
-    void build_argument_list( std::vector<std::string>& args, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths );
+    int m_current_configuration;
+
+    struct Configuration
+    {
+        std::string m_name;
+        std::vector<std::string> m_compileFlags;
+        std::vector<std::string> m_linkFlags;
+    };
+
+    std::vector<Configuration> m_configurations;
+
+    void build_compile_argument_list( std::vector<std::string>& args, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths );
 
 };
 
