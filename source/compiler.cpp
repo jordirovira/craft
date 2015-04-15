@@ -125,7 +125,7 @@ void Compiler::get_compile_dependencies( NodeList& deps, const std::string& sour
                     std::string dep_absolute_path = FileGetCurrentPath();
                     dep_absolute_path += FileSeparator()+dep;
 
-                    std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
+                    std::shared_ptr<Node> targetNode = std::make_shared<Node>();
                     targetNode->m_absolutePath = dep_absolute_path;
 
                     deps.push_back(targetNode);
@@ -193,7 +193,7 @@ void Compiler::get_link_program_dependencies( NodeList& deps,
         Target* target = ctx.get_target( uses[i] ).get();
         if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
         {
-            deps.push_back(lib->m_outputNodes[0]);
+            deps.push_back(lib->GetOutputNodes()[0]);
         }
         else if ( /*auto lib =*/ dynamic_cast<ExternDynamicLibraryTarget*>(target) )
         {
@@ -333,7 +333,7 @@ void Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
         Target* target = ctx.get_target( uses[i] ).get();
         if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
         {
-            deps.push_back(lib->m_outputNodes[0]);
+            deps.push_back(lib->GetOutputNodes()[0]);
         }
         else if ( /*auto lib =*/ dynamic_cast<ExternDynamicLibraryTarget*>(target) )
         {
@@ -376,7 +376,7 @@ void Compiler::link_dynamic_library( Context& ctx,
             args.push_back(lib->m_name);
 
             // We need to add the search path for the library
-            std::string pathToLib = FileGetPath( lib->m_outputNodes[0]->m_absolutePath );
+            std::string pathToLib = FileGetPath( lib->GetOutputNodes()[0]->m_absolutePath );
             //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library output node [%s].", lib->m_outputNodes[0]->m_absolutePath.c_str() );
             //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library ouput node path [%s].", pathToLib.c_str() );
             args.push_back("-L"+pathToLib);

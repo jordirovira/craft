@@ -62,11 +62,23 @@ Target& Target::is_default( bool enabled )
 }
 
 
-void CppTarget::build( Context& ctx )
+NodeList Target::GetOutputNodes()
 {
-    AXE_LOG( "Build", axe::L_Debug, "Building CPP target [%s] in configuration [%s]", m_name.c_str(), ctx.get_current_configuration().c_str() );
+    NodeList result;
 
-    NodeList objects;
+    for( const auto& t: m_outputTasks )
+    {
+        result.insert( result.end(), t->m_outputs.begin(), t->m_outputs.end() );
+    }
+
+    return result;
+}
+
+
+
+void ObjectTarget::build( Context& ctx )
+{
+    std::vector<std::shared_ptr<Task>> reqs;
 
     // Build dependencies
     for( size_t u=0; u<m_uses.size(); ++u )
@@ -74,6 +86,8 @@ void CppTarget::build( Context& ctx )
         std::shared_ptr<Target> usedTarget = ctx.get_target( m_uses[u] );
         assert( usedTarget );
         usedTarget->build( ctx );
+
+        reqs.insert( reqs.end(), usedTarget->m_outputTasks.begin(), usedTarget->m_outputTasks.end() );
     }
 
     // Gather include paths
@@ -93,7 +107,50 @@ void CppTarget::build( Context& ctx )
         split( m_includes[p], "\t\n ", includePaths );
     }
 
-    // Build own sources
+    std::shared_ptr<Task> compileTask = object( ctx, m_name, includePaths );
+    if (compileTask)
+    {
+        compileTask->m_requirements.insert( compileTask->m_requirements.end(), reqs.begin(), reqs.end() );
+        m_outputTasks.push_back(compileTask);
+    }
+}
+
+
+void CppTarget::build( Context& ctx )
+{
+    AXE_LOG( "Build", axe::L_Debug, "Building CPP target [%s] in configuration [%s]", m_name.c_str(), ctx.get_current_configuration().c_str() );
+
+    std::vector<std::shared_ptr<Task>> reqs;
+    NodeList objects;
+
+    // Build dependencies
+    for( size_t u=0; u<m_uses.size(); ++u )
+    {
+        std::shared_ptr<Target> usedTarget = ctx.get_target( m_uses[u] );
+        assert( usedTarget );
+        usedTarget->build( ctx );
+
+        reqs.insert( reqs.end(), usedTarget->m_outputTasks.begin(), usedTarget->m_outputTasks.end() );
+    }
+
+    // Gather include paths
+    std::vector<std::string> includePaths;
+    for( size_t u=0; u<m_uses.size(); ++u )
+    {
+        std::shared_ptr<Target> usedTarget = ctx.get_target( m_uses[u] );
+        assert( usedTarget );
+        for( size_t p=0; p<usedTarget->m_export_includes.size(); ++p )
+        {
+            split( usedTarget->m_export_includes[p], "\t\n ", includePaths );
+        }
+    }
+
+    for( size_t p=0; p<m_includes.size(); ++p )
+    {
+        split( m_includes[p], "\t\n ", includePaths );
+    }
+
+    // Build own
     for( size_t i=0; i<m_sources.size(); ++i )
     {
         std::vector<std::string> sourceFiles;
@@ -102,16 +159,25 @@ void CppTarget::build( Context& ctx )
         // Compile
         for( const auto &s: sourceFiles )
         {
-            // Compile
-            ctx.object( s, objects, includePaths );
+            auto t = ObjectTarget::object( ctx, s, includePaths );
+            if (t)
+            {
+                reqs.push_back( t );
+                objects.push_back( t->m_outputs[0] );
+            }
         }
     }
 
-    link( ctx, objects );
+    std::shared_ptr<Task> linkTask = link( ctx, objects );
+    if (linkTask)
+    {
+        linkTask->m_requirements.insert( linkTask->m_requirements.end(), reqs.begin(), reqs.end() );
+        m_outputTasks.push_back(linkTask);
+    }
 }
 
 
-void ProgramTarget::link( Context& ctx, const NodeList& objects )
+std::shared_ptr<Task> ProgramTarget::link( Context& ctx, const NodeList& objects )
 {
     std::string target = ctx.get_current_path()+FileSeparator()+ctx.get_current_configuration();
     target += FileSeparator()+m_name;
@@ -124,42 +190,48 @@ void ProgramTarget::link( Context& ctx, const NodeList& objects )
     std::string targetPath = FileGetPath( target );
     outdated = FileCreateDirectories( targetPath );
 
-    Compiler compiler;
-    compiler.set_configuration( ctx.get_current_configuration() );
-
     // If we didn't create the folder and the file exists,
     // see if we need to compile again or it is already up to date.
     if ( !outdated && FileExists(target) )
     {
         FileTime target_time = FileGetModificationTime( target );
 
+        Compiler compiler;
+        compiler.set_configuration( ctx.get_current_configuration() );
+
         NodeList dependencies;
         compiler.get_link_program_dependencies( dependencies, ctx, target, objects, m_uses );
 
-        for (const auto& n: dependencies)
-        {
-            FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
-            if (dep_time.IsNull() || dep_time>target_time)
-            {
-                outdated = true;
-                break;
-            }
-        }
+        outdated = ctx.IsTargetOutdated( target_time, dependencies );
     }
 
-    // Compile if we really need to.
+    std::shared_ptr<Node> targetNode = std::make_shared<Node>();
+    targetNode->m_absolutePath = target;
+
+    // Create the link task if we really need to.
+    std::shared_ptr<Task> result;
+
     if (outdated)
     {
-        compiler.link_program( ctx, target, objects, m_uses );
+        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
+
+        result = std::make_shared<Task>( "link static library", targetNode,
+                                         [=](Context* ctx)
+        {
+            Compiler compiler;
+            compiler.set_configuration( ctx->get_current_configuration() );
+            compiler.link_program( *ctx, target, objects, m_uses );
+        }
+                    );
+
+        ctx_impl->m_tasks.push_back(result);
     }
 
-    std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
-    targetNode->m_absolutePath = target;
-    m_outputNodes.push_back( targetNode );
+    return result;
 }
 
 
-void StaticLibraryTarget::link( Context& ctx, const NodeList& objects )
+std::shared_ptr<Task> StaticLibraryTarget::link( Context& ctx, const NodeList& objects )
 {
     std::string target = ctx.get_current_path()+FileSeparator()+ctx.get_current_configuration();
     target += FileSeparator()+m_name;
@@ -170,9 +242,6 @@ void StaticLibraryTarget::link( Context& ctx, const NodeList& objects )
     // Make sure the target folder exists
     std::string targetPath = FileGetPath( target );
     outdated = FileCreateDirectories( targetPath );
-
-    Compiler compiler;
-    compiler.set_configuration( ctx.get_current_configuration() );
 
     // If we didn't create the folder
     if ( !outdated )
@@ -186,36 +255,43 @@ void StaticLibraryTarget::link( Context& ctx, const NodeList& objects )
         }
         else
         {
+            Compiler compiler;
+            compiler.set_configuration( ctx.get_current_configuration() );
             NodeList dependencies;
             compiler.get_link_static_library_dependencies( dependencies, target, objects );
 
-            for (const auto& n: dependencies)
-            {
-                FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
-                if (dep_time.IsNull() || dep_time>target_time)
-                {
-                    outdated = true;
-                    break;
-                }
-            }
+            outdated = ctx.IsTargetOutdated( target_time, dependencies );
         }
     }
 
-    // Compile if we really need to.
+    std::shared_ptr<Node> targetNode = std::make_shared<Node>();
+    targetNode->m_absolutePath = target;
+    m_export_library_options.push_back(target);
+
+    // Create the link task if we really need to.
+    std::shared_ptr<Task> result;
+
     if (outdated)
     {
-        compiler.link_static_library( target, objects );
+        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
+
+        result = std::make_shared<Task>( "link static library", targetNode,
+                                         [=](Context* ctx)
+        {
+            Compiler compiler;
+            compiler.set_configuration( ctx->get_current_configuration() );
+            compiler.link_static_library( target, objects );
+        }
+                    );
+
+        ctx_impl->m_tasks.push_back(result);
     }
 
-    std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
-    targetNode->m_absolutePath = target;
-    m_outputNodes.push_back( targetNode );
-
-    m_export_library_options.push_back(target);
+    return result;
 }
 
 
-void DynamicLibraryTarget::link( Context& ctx, const NodeList& objects )
+std::shared_ptr<Task> DynamicLibraryTarget::link( Context& ctx, const NodeList& objects )
 {
     // Create output file name
     std::string target = ctx.get_current_path()+FileSeparator()+ctx.get_current_configuration();
@@ -228,9 +304,6 @@ void DynamicLibraryTarget::link( Context& ctx, const NodeList& objects )
     std::string targetPath = FileGetPath( target );
     outdated = FileCreateDirectories( targetPath );
 
-    Compiler compiler;
-    compiler.set_configuration( ctx.get_current_configuration() );
-
     // If we didn't create the folder
     if ( !outdated )
     {
@@ -244,31 +317,39 @@ void DynamicLibraryTarget::link( Context& ctx, const NodeList& objects )
         else
         {
             NodeList dependencies;
+
+            Compiler compiler;
+            compiler.set_configuration( ctx.get_current_configuration() );
             compiler.get_link_dynamic_library_dependencies( dependencies, ctx, target, objects, m_uses );
 
-            for (const auto& n: dependencies)
-            {
-                FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
-                if (dep_time.IsNull() || dep_time>target_time)
-                {
-                    outdated = true;
-                    break;
-                }
-            }
+            outdated = ctx.IsTargetOutdated( target_time, dependencies );
         }
     }
 
-    // Compile if we really need to.
+    m_target = std::make_shared<Node>();
+    m_target->m_absolutePath = target;
+    m_export_library_options.push_back(target);
+
+    // Create the link task if we really need to.
+    std::shared_ptr<Task> result;
+
     if (outdated)
     {
-        compiler.link_dynamic_library( ctx, target, objects, m_uses );
+        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
+
+        result = std::make_shared<Task>( "link dynamic library", m_target,
+                                         [=](Context* ctx)
+        {
+            Compiler compiler;
+            compiler.set_configuration( ctx->get_current_configuration() );
+            compiler.link_dynamic_library( *ctx, target, objects, m_uses );
+        }
+                    );
+
+        ctx_impl->m_tasks.push_back(result);
     }
 
-    std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
-    targetNode->m_absolutePath = target;
-    m_outputNodes.push_back( targetNode );
-
-    m_export_library_options.push_back(target);
+    return result;
 }
 
 
@@ -414,7 +495,14 @@ const std::vector<std::string>& ContextImpl::get_default_configurations() const
 
 void ContextImpl::run()
 {
+    AXE_SCOPED_SECTION(tasks);
+
     // Things should happen here.
+    for ( std::size_t i=0; i<m_tasks.size(); ++i )
+    {
+        AXE_LOG( "task", axe::L_Info, "[%3d of %3d] %s", i+1, m_tasks.size(), m_tasks[i]->m_type.c_str() );
+        m_tasks[i]->m_runMethod( this );
+    }
 }
 
 
@@ -424,11 +512,11 @@ const std::string& ContextImpl::get_current_path()
 }
 
 
-std::shared_ptr<FileNode> ContextImpl::file( const std::string& absolutePath )
+std::shared_ptr<Node> ContextImpl::file( const std::string& absolutePath )
 {
     assert( FileIsAbsolute(absolutePath) );
 
-    std::shared_ptr<FileNode> result = std::make_shared<FileNode>();
+    std::shared_ptr<Node> result = std::make_shared<Node>();
     result->m_absolutePath = absolutePath;
 
     return result;
@@ -455,9 +543,9 @@ Target& ContextImpl::static_library( const std::string& name )
     return *target;
 }
 
-Target& ContextImpl::dynamic_library( const std::string& name )
+DynamicLibraryTarget& ContextImpl::dynamic_library( const std::string& name )
 {
-    std::shared_ptr<Target> target = std::make_shared<DynamicLibraryTarget>();
+    std::shared_ptr<DynamicLibraryTarget> target = std::make_shared<DynamicLibraryTarget>();
     target->m_name = name;
 
     m_targets.push_back( target );
@@ -477,11 +565,23 @@ Target& ContextImpl::extern_dynamic_library( const std::string& name )
 }
 
 
-void ContextImpl::object( const std::string& name, NodeList& objects, const std::vector<std::string>& includePaths )
+Target& ContextImpl::object( const std::string& name, const std::vector<std::string>& includePaths )
 {
-    FileCreateDirectories( m_currentPath );
+    std::shared_ptr<Target> target = std::make_shared<ObjectTarget>();
+    target->m_name = name;
+    target->m_includes = includePaths;
 
-    std::string target = m_currentPath+FileSeparator()+get_current_configuration()+FileSeparator()+name;
+    m_targets.push_back( target );
+
+    return *target;
+}
+
+
+std::shared_ptr<Task> ObjectTarget::object( Context& ctx, const std::string& name, const std::vector<std::string>& includePaths )
+{
+    FileCreateDirectories( ctx.get_current_path() );
+
+    std::string target = ctx.get_current_path()+FileSeparator()+ctx.get_current_configuration()+FileSeparator()+name;
     target = FileReplaceExtension(target,"o");
 
     // Calculate if we need to compile in this variable
@@ -490,9 +590,6 @@ void ContextImpl::object( const std::string& name, NodeList& objects, const std:
     // Make sure the target folder exists
     std::string targetPath = FileGetPath( target );
     outdated = FileCreateDirectories( targetPath );
-
-    Compiler compiler;
-    compiler.set_configuration( get_current_configuration() );
 
     // If we didn't create the folder
     if ( !outdated )
@@ -506,32 +603,39 @@ void ContextImpl::object( const std::string& name, NodeList& objects, const std:
         }
         else
         {
+            Compiler compiler;
+            compiler.set_configuration( ctx.get_current_configuration() );
+
             NodeList dependencies;
             compiler.get_compile_dependencies( dependencies, name, target, includePaths );
 
-            for (const auto& n: dependencies)
-            {
-                FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
-                if (dep_time.IsNull() || dep_time>target_time)
-                {
-                    outdated = true;
-                    break;
-                }
-            }
+            outdated = ctx.IsTargetOutdated( target_time, dependencies );
         }
     }
 
-    // Compile if we really need to.
+    std::shared_ptr<Node> targetNode = std::make_shared<Node>();
+    targetNode->m_absolutePath = target;
+
+    // Create the compile task if we really need to.
+    std::shared_ptr<Task> result;
+
     if (outdated)
     {
-        compiler.compile( name, target, includePaths );
+        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
 
-        assert( FileExists(target) );
+        result = std::make_shared<Task>( "compile", targetNode,
+                                         [=](Context* ctx)
+        {
+            Compiler compiler;
+            compiler.set_configuration( ctx->get_current_configuration() );
+            compiler.compile( name, target, includePaths );
+        }
+                    );
+
+        ctx_impl->m_tasks.push_back(result);
     }
 
-    std::shared_ptr<FileNode> targetNode = std::make_shared<FileNode>();
-    targetNode->m_absolutePath = target;
-    objects.push_back( targetNode );
+    return result;
 }
 
 
@@ -571,3 +675,46 @@ TargetList ContextImpl::get_default_targets()
 
     return result;
 }
+
+
+bool ContextImpl::IsNodePending( const Node& node )
+{
+    for( const auto& t: m_tasks )
+    {
+       for ( const auto& n: t->m_outputs )
+       {
+           if ( node.m_absolutePath==n->m_absolutePath )
+           {
+               return true;
+           }
+       }
+    }
+
+    return false;
+}
+
+
+bool ContextImpl::IsTargetOutdated( FileTime target_time, const NodeList& dependencies )
+{
+    if ( target_time.IsNull() )
+    {
+        return true;
+    }
+
+    for (const auto& n: dependencies)
+    {
+        if (IsNodePending(*n))
+        {
+            return true;
+        }
+
+        FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
+        if (dep_time.IsNull() || dep_time>target_time)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+

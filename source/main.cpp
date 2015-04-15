@@ -66,7 +66,7 @@ int main( int argc, const char** argv )
             {
                 if (arg+1<argc)
                 {
-                    // Do we really have a workspace, or do we have another option?
+                    // Do we really have a workspace path, or do we have another option?
                     if (argv[arg+1][0]!='-')
                     {
                         workspace = argv[arg+1];
@@ -78,7 +78,7 @@ int main( int argc, const char** argv )
             {
                 if (arg+1<argc)
                 {
-                    // Do we really have a configuration, or do we have another option?
+                    // Do we really have a configuration name, or do we have another option?
                     if (argv[arg+1][0]!='-')
                     {
                         configurations.push_back( argv[arg+1] );
@@ -107,22 +107,23 @@ int main( int argc, const char** argv )
         std::shared_ptr<Context> ctx = Context::Create( true, false );
         ctx->set_current_configuration( "debug" );
 
-        //
+        // \TODO
         ctx->extern_dynamic_library( "craft-core" )
                 .export_include( workspace+"/source" )
-                .library_path( workspace+"/build/waf/OSX-x86_64-gcc6.0.0/debug/")
+                .library_path( workspace+"/build/waf/OSX-x86_64-gcc6.1.0/debug/")
                 ;
 
-        auto& target = ctx->dynamic_library( "craftfile" )
-                .source( root+"craftfile" )
+        DynamicLibraryTarget& target = ctx->dynamic_library( "craftfile" );
+        target.source( root+"craftfile" )
                 .use( "craft-core" );
 
         target.build(*ctx);
+        ctx->run();
 
         // Load and run the dynamic library entry method
         {
             AXE_SCOPED_SECTION_DETAILED(RunningCraftfile,"Running craftfile");
-            std::string craftLibrary = target.GetOutputNodes()[0]->m_absolutePath;
+            std::string craftLibrary = target.m_target->m_absolutePath;
             LoadAndRun( craftLibrary.c_str(), "craft_entry", workspace.c_str(), &configurations[0] );
         }
     }

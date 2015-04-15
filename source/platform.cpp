@@ -337,8 +337,12 @@ void Run( const std::string& command,
                     }
                     else
                     {
-                        printf("IO Error\n");
-                        assert(false);
+                        int error = errno;
+                        if (error!=EINTR && error!=EAGAIN)
+                        {
+                            perror("IO Error\n");
+                            assert(false);
+                        }
                     }
 
                     if ( count==0 )

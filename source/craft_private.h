@@ -27,13 +27,17 @@ public:
     virtual std::shared_ptr<Target> get_target( const std::string& name ) override;
     virtual const TargetList& get_targets() override;
     virtual TargetList get_default_targets() override;
-    virtual std::shared_ptr<FileNode> file( const std::string& absolutePath ) override;
+    virtual std::shared_ptr<Node> file( const std::string& absolutePath ) override;
     virtual Target& program( const std::string& name ) override;
     virtual Target& static_library( const std::string& name ) override;
-    virtual Target& dynamic_library( const std::string& name ) override;
+    virtual DynamicLibraryTarget& dynamic_library( const std::string& name ) override;
     virtual Target& extern_dynamic_library( const std::string& name ) override;
-    virtual void object(const std::string& name, NodeList& objects, const std::vector<std::string>& includePaths) override;
+    virtual Target& object(const std::string& name, const std::vector<std::string>& includePaths) override;
     virtual void run() override;
+    virtual bool IsTargetOutdated( FileTime target_time, const NodeList& dependencies ) override;
+
+    // Vector of tasks being filled up while defining targets
+    std::vector<std::shared_ptr<Task>> m_tasks;
 
 protected:
 
@@ -74,11 +78,18 @@ protected:
 
 private:
 
-    // Rebuild the build folder based on host and target platforms
+    //! Rebuild the build folder based on host and target platforms
     void update_target_folder();
 
-    // Identify the currently running platform among the registered platforms
+    //! Identify the currently running platform among the registered platforms
     std::shared_ptr<Platform> get_this_platform();
+
+    //!
+    //! \brief IsNodePending
+    //! \param node
+    //! \return
+    //!
+    bool IsNodePending( const Node& node );
 
 };
 
