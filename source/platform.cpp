@@ -38,6 +38,14 @@ bool PlatformLinux::is_this() const
 }
 
 
+std::string PlatformLinux::get_dynamic_library_file_name( const std::string& sourceName ) const
+{
+    std::string result = sourceName;
+    result = FileReplaceExtension(result,"so");
+    return result;
+}
+
+
 const char* PlatformLinux32::arch() const
 {
     return "x32";
@@ -89,6 +97,14 @@ bool PlatformOSX::is_this() const
 #else
     return false;
 #endif
+}
+
+
+std::string PlatformOSX::get_dynamic_library_file_name( const std::string& sourceName ) const
+{
+    std::string result = std::string("lib")+sourceName;
+    result = FileReplaceExtension(result,"dylib");
+    return result;
 }
 
 

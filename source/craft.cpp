@@ -62,20 +62,6 @@ Target& Target::is_default( bool enabled )
 }
 
 
-NodeList Target::GetOutputNodes()
-{
-    NodeList result;
-
-    for( const auto& t: m_outputTasks )
-    {
-        result.insert( result.end(), t->m_outputs.begin(), t->m_outputs.end() );
-    }
-
-    return result;
-}
-
-
-
 void ObjectTarget::build( Context& ctx )
 {
     std::vector<std::shared_ptr<Task>> reqs;
@@ -192,17 +178,25 @@ std::shared_ptr<Task> ProgramTarget::link( Context& ctx, const NodeList& objects
 
     // If we didn't create the folder and the file exists,
     // see if we need to compile again or it is already up to date.
-    if ( !outdated && FileExists(target) )
+    if ( !outdated )
     {
         FileTime target_time = FileGetModificationTime( target );
 
-        Compiler compiler;
-        compiler.set_configuration( ctx.get_current_configuration() );
+        // Does the target exist?
+        if (target_time.IsNull())
+        {
+            outdated = true;
+        }
+        else
+        {
+            NodeList dependencies;
 
-        NodeList dependencies;
-        compiler.get_link_program_dependencies( dependencies, ctx, target, objects, m_uses );
+            Compiler compiler;
+            compiler.set_configuration( ctx.get_current_configuration() );
+            compiler.get_link_program_dependencies( dependencies, ctx, target, objects, m_uses );
 
-        outdated = ctx.IsTargetOutdated( target_time, dependencies );
+            outdated = ctx.IsTargetOutdated( target_time, dependencies );
+        }
     }
 
     std::shared_ptr<Node> targetNode = std::make_shared<Node>();
@@ -213,17 +207,17 @@ std::shared_ptr<Task> ProgramTarget::link( Context& ctx, const NodeList& objects
 
     if (outdated)
     {
-        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
-
-        result = std::make_shared<Task>( "link static library", targetNode,
+        std::string configuration = ctx.get_current_configuration();
+        result = std::make_shared<Task>( "link program", targetNode,
                                          [=](Context* ctx)
         {
             Compiler compiler;
-            compiler.set_configuration( ctx->get_current_configuration() );
+            compiler.set_configuration( configuration );
             compiler.link_program( *ctx, target, objects, m_uses );
         }
                     );
 
+        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
         ctx_impl->m_tasks.push_back(result);
     }
 
@@ -264,8 +258,8 @@ std::shared_ptr<Task> StaticLibraryTarget::link( Context& ctx, const NodeList& o
         }
     }
 
-    std::shared_ptr<Node> targetNode = std::make_shared<Node>();
-    targetNode->m_absolutePath = target;
+    m_target = std::make_shared<Node>();
+    m_target->m_absolutePath = target;
     m_export_library_options.push_back(target);
 
     // Create the link task if we really need to.
@@ -273,17 +267,17 @@ std::shared_ptr<Task> StaticLibraryTarget::link( Context& ctx, const NodeList& o
 
     if (outdated)
     {
-        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
-
-        result = std::make_shared<Task>( "link static library", targetNode,
+        std::string configuration = ctx.get_current_configuration();
+        result = std::make_shared<Task>( "link static library", m_target,
                                          [=](Context* ctx)
         {
             Compiler compiler;
-            compiler.set_configuration( ctx->get_current_configuration() );
+            compiler.set_configuration( configuration );
             compiler.link_static_library( target, objects );
         }
                     );
 
+        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
         ctx_impl->m_tasks.push_back(result);
     }
 
@@ -295,8 +289,8 @@ std::shared_ptr<Task> DynamicLibraryTarget::link( Context& ctx, const NodeList& 
 {
     // Create output file name
     std::string target = ctx.get_current_path()+FileSeparator()+ctx.get_current_configuration();
-    target += FileSeparator()+m_name;
-    target = FileReplaceExtension(target,"so");
+    std::string libraryName = ctx.get_current_target_platform()->get_dynamic_library_file_name( m_name );
+    target += FileSeparator()+libraryName;
 
     bool outdated = false;
 
@@ -335,17 +329,17 @@ std::shared_ptr<Task> DynamicLibraryTarget::link( Context& ctx, const NodeList& 
 
     if (outdated)
     {
-        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
-
+        std::string configuration = ctx.get_current_configuration();
         result = std::make_shared<Task>( "link dynamic library", m_target,
                                          [=](Context* ctx)
         {
             Compiler compiler;
-            compiler.set_configuration( ctx->get_current_configuration() );
+            compiler.set_configuration( configuration );
             compiler.link_dynamic_library( *ctx, target, objects, m_uses );
         }
                     );
 
+        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
         ctx_impl->m_tasks.push_back(result);
     }
 
@@ -603,10 +597,10 @@ std::shared_ptr<Task> ObjectTarget::object( Context& ctx, const std::string& nam
         }
         else
         {
+            NodeList dependencies;
+
             Compiler compiler;
             compiler.set_configuration( ctx.get_current_configuration() );
-
-            NodeList dependencies;
             compiler.get_compile_dependencies( dependencies, name, target, includePaths );
 
             outdated = ctx.IsTargetOutdated( target_time, dependencies );
@@ -621,17 +615,17 @@ std::shared_ptr<Task> ObjectTarget::object( Context& ctx, const std::string& nam
 
     if (outdated)
     {
-        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
-
+        std::string configuration = ctx.get_current_configuration();
         result = std::make_shared<Task>( "compile", targetNode,
                                          [=](Context* ctx)
         {
             Compiler compiler;
-            compiler.set_configuration( ctx->get_current_configuration() );
+            compiler.set_configuration( configuration );
             compiler.compile( name, target, includePaths );
         }
                     );
 
+        ContextImpl* ctx_impl = dynamic_cast<ContextImpl*>(&ctx);
         ctx_impl->m_tasks.push_back(result);
     }
 

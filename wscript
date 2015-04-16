@@ -62,9 +62,6 @@ def configure(ctx):
     if ctx.env.TARGETPLATFORM=='Android':
         crosabuild.configure_android(ctx)
 
-    # check auto-built external dependencies
-    ctx.recurse( 'Extern' )
-
     if ctx.env.TARGETPLATFORM=='Windows':
         ctx.check(features='cxx cxxprogram', msg='checking for system libraries',
                   lib=['WinMM', 'imm32', 'version', 'uuid', 'Ole32', 'OleAut32', 'gdi32', 'User32',
@@ -117,9 +114,6 @@ def configure(ctx):
             common_LINKFLAGS += ['-m64']
 
         if ctx.env.TARGETPLATFORM=='Windows':
-            # mingw seems to require this define to link with static boost threads
-            common_CXXFLAGS         += ['-DBOOST_THREAD_USE_LIB']
-
             common_CXXFLAGS         += ['-mwindows']
             common_LINKFLAGS        += ['-Wl,-subsystem,windows' ]
 
@@ -176,22 +170,19 @@ def build(ctx):
 
     ctx.env.CROSA_ROOT = ctx.path.abspath()
 
-    ctx.recurse('Extern')
-
     ctx.shlib(
         source   = 'source/craft.cpp source/platform.cpp source/compiler.cpp',
         target   = 'craft-core',
-        use      = ' BOOST ',
         defines  = ' CRAFTCOREI_BUILD ',
-        includes = 'source Extern Extern/boost-process',
+        includes = 'source',
         )
 
     ctx.program(
         source   = 'source/main.cpp',
         target   = 'craft',
-        use      = ' craft-core BOOST',
+        use      = ' craft-core',
         lib      = ' dl ',
-        includes = 'source Extern',
+        includes = 'source',
         linkflags  = '-Wl,-rpath,$ORIGIN'
         )
 

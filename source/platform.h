@@ -45,6 +45,8 @@ public:
     //! Return true if this is the running platform
     CRAFTCOREI_API virtual bool is_this() const = 0;
 
+    //! Return the default dynamic library file name for this platform.
+    CRAFTCOREI_API virtual std::string get_dynamic_library_file_name( const std::string& source ) const = 0;
 };
 
 
@@ -55,6 +57,7 @@ public:
     // Platform interface
     virtual const char* os() const;
     virtual bool is_this() const;
+    virtual std::string get_dynamic_library_file_name( const std::string& source ) const;
 
 };
 
@@ -88,6 +91,7 @@ public:
     // Platform interface
     virtual const char* os() const;
     virtual bool is_this() const;
+    virtual std::string get_dynamic_library_file_name( const std::string& source ) const;
 
 };
 

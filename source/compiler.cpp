@@ -161,11 +161,13 @@ void Compiler::compile( const std::string& source, const std::string& target, co
              [&out](const char* text){ out += text; },
              [&err](const char* text){ err += text; } );
 
+        if (out.size())
         {
             AXE_SCOPED_SECTION(stdout);
             AXE_LOG_LINES( "stdout", axe::L_Verbose, out );
         }
 
+        if (err.size())
         {
             AXE_SCOPED_SECTION(stderr);
             AXE_LOG_LINES( "stderr", axe::L_Verbose, err );
@@ -193,7 +195,7 @@ void Compiler::get_link_program_dependencies( NodeList& deps,
         Target* target = ctx.get_target( uses[i] ).get();
         if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
         {
-            deps.push_back(lib->GetOutputNodes()[0]);
+            deps.push_back(lib->m_target);
         }
         else if ( /*auto lib =*/ dynamic_cast<ExternDynamicLibraryTarget*>(target) )
         {
@@ -249,11 +251,13 @@ void Compiler::link_program( Context& ctx,
              [&out](const char* text){ out += text; },
              [&err](const char* text){ err += text; } );
 
+        if (out.size())
         {
             AXE_SCOPED_SECTION(stdout);
             AXE_LOG_LINES( "stdout", axe::L_Verbose, out );
         }
 
+        if (err.size())
         {
             AXE_SCOPED_SECTION(stderr);
             AXE_LOG_LINES( "stderr", axe::L_Verbose, err );
@@ -333,7 +337,7 @@ void Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
         Target* target = ctx.get_target( uses[i] ).get();
         if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
         {
-            deps.push_back(lib->GetOutputNodes()[0]);
+            deps.push_back(lib->m_target);
         }
         else if ( /*auto lib =*/ dynamic_cast<ExternDynamicLibraryTarget*>(target) )
         {
@@ -376,7 +380,7 @@ void Compiler::link_dynamic_library( Context& ctx,
             args.push_back(lib->m_name);
 
             // We need to add the search path for the library
-            std::string pathToLib = FileGetPath( lib->GetOutputNodes()[0]->m_absolutePath );
+            std::string pathToLib = FileGetPath( lib->m_target->m_absolutePath );
             //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library output node [%s].", lib->m_outputNodes[0]->m_absolutePath.c_str() );
             //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library ouput node path [%s].", pathToLib.c_str() );
             args.push_back("-L"+pathToLib);
@@ -404,11 +408,13 @@ void Compiler::link_dynamic_library( Context& ctx,
              [&out](const char* text){ out += text; },
              [&err](const char* text){ err += text; } );
 
+        if (out.size())
         {
             AXE_SCOPED_SECTION(stdout);
             AXE_LOG_LINES( "stdout", axe::L_Verbose, out );
         }
 
+        if (err.size())
         {
             AXE_SCOPED_SECTION(stderr);
             AXE_LOG_LINES( "stderr", axe::L_Verbose, err );

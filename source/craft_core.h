@@ -85,8 +85,6 @@ public:
     // Operation
     CRAFTCOREI_API virtual void build( Context& ctx ) = 0;
 
-    CRAFTCOREI_API NodeList GetOutputNodes();
-
     std::string m_name;
 
     //!
@@ -140,6 +138,7 @@ public:
 
     virtual void build( Context& ctx ) override;
 
+    std::shared_ptr<Node> m_target;
 
 protected:
     virtual std::shared_ptr<Task> link( Context& ctx, const NodeList& objects ) = 0;
@@ -163,9 +162,6 @@ protected:
 
 class DynamicLibraryTarget : public CppTarget
 {
-public:
-    std::shared_ptr<Node> m_target;
-
 protected:
     virtual std::shared_ptr<Task> link( Context& ctx, const NodeList& objects ) override;
 };
