@@ -117,13 +117,13 @@ int main( int argc, const char** argv )
         target.source( root+"craftfile" )
                 .use( "craft-core" );
 
-        target.build(*ctx);
+        auto builtTarget = target.build(*ctx);
         ctx->run();
 
         // Load and run the dynamic library entry method
         {
             AXE_SCOPED_SECTION_DETAILED(RunningCraftfile,"Running craftfile");
-            std::string craftLibrary = target.m_target->m_absolutePath;
+            std::string craftLibrary = builtTarget->m_outputNode->m_absolutePath;
             LoadAndRun( craftLibrary.c_str(), "craft_entry", workspace.c_str(), &configurations[0] );
         }
     }

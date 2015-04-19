@@ -5,6 +5,7 @@
 #include "compiler.h"
 
 #include <algorithm>
+#include <map>
 
 
 class ContextImpl : public Context
@@ -25,6 +26,7 @@ public:
     virtual const std::vector<std::string>& get_default_configurations() const override;
     virtual const std::string& get_current_path() override;
     virtual std::shared_ptr<Target> get_target( const std::string& name ) override;
+    virtual std::shared_ptr<BuiltTarget> get_built_target( const std::string& name ) override;
     virtual const TargetList& get_targets() override;
     virtual TargetList get_default_targets() override;
     virtual std::shared_ptr<Node> file( const std::string& absolutePath ) override;
@@ -36,7 +38,7 @@ public:
     virtual void run() override;
     virtual bool IsTargetOutdated( FileTime target_time, const NodeList& dependencies ) override;
 
-    // Vector of tasks being filled up while defining targets
+    //! Vector of tasks being filled up while defining targets
     std::vector<std::shared_ptr<Task>> m_tasks;
 
 protected:
@@ -58,22 +60,40 @@ protected:
     std::string m_currentPath;
 
     std::vector< std::shared_ptr<Node> > m_nodes;
+
+    //! List of targets produced by the craftfile.
     TargetList m_targets;
 
-    std::vector< std::shared_ptr<Platform> > m_platforms;
+    struct BuildConditions
+    {
+        std::string m_configuration;
+
+        // \TODO: Target platform?
+    };
+
+    struct BuiltTargets
+    {
+        BuildConditions m_conditions;
+        std::map< std::shared_ptr<Target>, std::shared_ptr<BuiltTarget> > m_targets;
+    };
+    std::vector<std::shared_ptr<BuiltTargets>> m_builtTargets;
+    std::shared_ptr<BuiltTargets> m_currentBuiltTargets;
+
+    std::vector<std::shared_ptr<Platform>> m_platforms;
     std::shared_ptr<Platform> m_target_platform;
     std::shared_ptr<Platform> m_host_platform;
 
     std::vector< std::shared_ptr<Toolchain> > m_toolchains;
     std::shared_ptr<Toolchain> m_toolchain;
 
-    //! Configurations that can be built for every target
+    //! Definition of the available configurations that can be used to build targets
     std::vector<std::string> m_configurations;
 
-    //!
+    //! Name of the configurations that will be built if none is specified by other means, like the
+    //! command line.
     std::vector<std::string> m_default_configurations;
 
-    //!
+    //! Configuration that we are currently parsing targets for.
     std::string m_current_configuration;
 
 private:

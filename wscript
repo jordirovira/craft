@@ -171,7 +171,7 @@ def build(ctx):
     ctx.env.CROSA_ROOT = ctx.path.abspath()
 
     ctx.shlib(
-        source   = 'source/craft.cpp source/platform.cpp source/compiler.cpp',
+        source   = 'source/craft.cpp source/context.cpp source/target.cpp source/platform.cpp source/compiler.cpp',
         target   = 'craft-core',
         defines  = ' CRAFTCOREI_BUILD ',
         includes = 'source',

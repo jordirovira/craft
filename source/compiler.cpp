@@ -181,10 +181,8 @@ void Compiler::compile( const std::string& source, const std::string& target, co
 
 
 void Compiler::get_link_program_dependencies( NodeList& deps,
-                                              Context& ctx,
-                                              const std::string& target,
                                               const NodeList& objects,
-                                              const std::vector<std::string>& uses)
+                                              const std::vector<std::shared_ptr<BuiltTarget>>& uses)
 {
     AXE_SCOPED_SECTION(get_deps);
 
@@ -192,39 +190,42 @@ void Compiler::get_link_program_dependencies( NodeList& deps,
 
     for (size_t i=0; i<uses.size(); ++i)
     {
-        Target* target = ctx.get_target( uses[i] ).get();
-        if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
+        Target* target = uses[i]->m_sourceTarget.get();
+        if ( dynamic_cast<DynamicLibraryTarget*>(target) )
         {
-            deps.push_back(lib->m_target);
+            deps.push_back(uses[i]->m_outputNode);
         }
-        else if ( /*auto lib =*/ dynamic_cast<ExternDynamicLibraryTarget*>(target) )
+        else if ( dynamic_cast<ExternDynamicLibraryTarget*>(target) )
         {
+        }
+        else if ( dynamic_cast<StaticLibraryTarget*>(target) )
+        {
+            deps.push_back(uses[i]->m_outputNode);
         }
         else
         {
             // Unsuported use
-            AXE_LOG( "Compiler", axe::L_Error, "Dynamic library uses an unknown target type [%s].", target->m_name.c_str() );
+            AXE_LOG( "Compiler", axe::L_Error, "Program uses an unknown target type [%s].", target->m_name.c_str() );
         }
     }
 }
 
 
-void Compiler::link_program( Context& ctx,
-                             const std::string& target,
+void Compiler::link_program( const std::string& target,
                              const NodeList& objects,
-                             const std::vector<std::string>& uses )
+                             const std::vector<std::shared_ptr<BuiltTarget>>& uses )
 {
-    AXE_SCOPED_SECTION(link);
+    AXE_SCOPED_SECTION(link_program);
 
     // Gather library options
     std::vector<std::string> libraryOptions;
     for( size_t u=0; u<uses.size(); ++u )
     {
-        std::shared_ptr<Target> usedTarget = ctx.get_target( uses[u] );
+        std::shared_ptr<BuiltTarget> usedTarget = uses[u];
         assert( usedTarget );
-        for( size_t p=0; p<usedTarget->m_export_library_options.size(); ++p )
+        for( size_t p=0; p<usedTarget->m_sourceTarget->m_export_library_options.size(); ++p )
         {
-            split( usedTarget->m_export_library_options[p], "\t\n ", libraryOptions );
+            split( usedTarget->m_sourceTarget->m_export_library_options[p], "\t\n ", libraryOptions );
         }
     }
 
@@ -242,6 +243,40 @@ void Compiler::link_program( Context& ctx,
     for (size_t i=0; i<libraryOptions.size(); ++i)
     {
          args.push_back(libraryOptions[i]);
+    }
+
+    for (size_t i=0; i<uses.size(); ++i)
+    {
+        Target* target = uses[i]->m_sourceTarget.get();
+        if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
+        {
+            args.push_back("-l");
+            args.push_back(lib->m_name);
+
+            // We need to add the search path for the library
+            std::string pathToLib = FileGetPath( uses[i]->m_outputNode->m_absolutePath );
+            //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library output node [%s].", lib->m_outputNodes[0]->m_absolutePath.c_str() );
+            //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library ouput node path [%s].", pathToLib.c_str() );
+            args.push_back("-L"+pathToLib);
+        }
+        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget*>(target) )
+        {
+            if (lib->m_library_path.size())
+            {
+                args.push_back("-L"+lib->m_library_path);
+            }
+            args.push_back("-l");
+            args.push_back(lib->m_name);
+        }
+        else if ( dynamic_cast<StaticLibraryTarget*>(target) )
+        {
+            args.push_back(uses[i]->m_outputNode->m_absolutePath);
+        }
+        else
+        {
+            // Unsuported use
+            AXE_LOG( "Compiler", axe::L_Error, "Program uses an unknown target type [%s].", target->m_name.c_str() );
+        }
     }
 
     try
@@ -323,10 +358,9 @@ void Compiler::link_static_library( const std::string& target, const NodeList& o
 
 
 void Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
-                               Context& ctx,
                                const std::string& target,
                                const NodeList& objects,
-                               const std::vector<std::string>& uses )
+                               const std::vector<std::shared_ptr<BuiltTarget>>& uses )
 {
     AXE_SCOPED_SECTION(get_deps);
 
@@ -334,12 +368,12 @@ void Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
 
     for (size_t i=0; i<uses.size(); ++i)
     {
-        Target* target = ctx.get_target( uses[i] ).get();
-        if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
+        Target* target = uses[i]->m_sourceTarget.get();
+        if ( dynamic_cast<DynamicLibraryTarget*>(target) )
         {
-            deps.push_back(lib->m_target);
+            deps.push_back(uses[i]->m_outputNode);
         }
-        else if ( /*auto lib =*/ dynamic_cast<ExternDynamicLibraryTarget*>(target) )
+        else if ( dynamic_cast<ExternDynamicLibraryTarget*>(target) )
         {
         }
         else
@@ -351,10 +385,9 @@ void Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
 }
 
 
-void Compiler::link_dynamic_library( Context& ctx,
-                                     const std::string& target,
+void Compiler::link_dynamic_library( const std::string& target,
                                      const NodeList& objects,
-                                     const std::vector<std::string>& uses )
+                                     const std::vector<std::shared_ptr<BuiltTarget>>& uses )
 {
     AXE_SCOPED_SECTION(link_shared_lib);
 
@@ -373,14 +406,14 @@ void Compiler::link_dynamic_library( Context& ctx,
 
     for (size_t i=0; i<uses.size(); ++i)
     {
-        Target* target = ctx.get_target( uses[i] ).get();
+        Target* target = uses[i]->m_sourceTarget.get();
         if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
         {
             args.push_back("-l");
             args.push_back(lib->m_name);
 
             // We need to add the search path for the library
-            std::string pathToLib = FileGetPath( lib->m_target->m_absolutePath );
+            std::string pathToLib = FileGetPath( uses[i]->m_outputNode->m_absolutePath );
             //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library output node [%s].", lib->m_outputNodes[0]->m_absolutePath.c_str() );
             //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library ouput node path [%s].", pathToLib.c_str() );
             args.push_back("-L"+pathToLib);

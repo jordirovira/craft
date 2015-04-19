@@ -35,31 +35,26 @@ public:
     //! \param uses
     //!
     void get_link_dynamic_library_dependencies( NodeList& deps,
-                                   Context& ctx,
                                    const std::string& target,
                                    const NodeList& objects,
-                                   const std::vector<std::string>& uses);
+                                   const std::vector<std::shared_ptr<BuiltTarget>>& uses);
 
     void get_link_static_library_dependencies( NodeList& deps,
                                    const std::string& target,
                                    const NodeList& objects );
 
-    void get_link_program_dependencies( NodeList& deps,
-                                   Context& ctx,
-                                   const std::string& target,
+    void get_link_program_dependencies(NodeList& deps,
                                    const NodeList& objects,
-                                   const std::vector<std::string>& uses);
+                                   const std::vector<std::shared_ptr<BuiltTarget>>& uses);
 
     void compile( const std::string& source, const std::string& target, const std::vector<std::string>& includePaths );
-    void link_program( Context& ctx,
-                       const std::string& target,
+    void link_program( const std::string& target,
                        const NodeList& objects,
-                       const std::vector<std::string>& uses );
+                       const std::vector<std::shared_ptr<BuiltTarget>>& uses );
     void link_static_library( const std::string& target, const NodeList& objects );
-    void link_dynamic_library( Context& ctx,
-                               const std::string& target,
+    void link_dynamic_library( const std::string& target,
                                const NodeList& objects,
-                               const std::vector<std::string>& uses);
+                               const std::vector<std::shared_ptr<BuiltTarget>>& uses);
 
 
 private:

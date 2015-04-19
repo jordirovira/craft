@@ -18,3 +18,5 @@ examples/test_lib.h
 examples/test_lib_a.cpp
 examples/test_lib_b.cpp
 
+source/context.cpp
+source/target.cpp

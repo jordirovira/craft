@@ -13,7 +13,7 @@ void craft( Context& ctx )
     //packages::boost::craft( ctx, packages::boost::options::dynamic_link );
 
     ctx.dynamic_library( "craft-core" )
-            .source( "source/craft.cpp source/platform.cpp source/compiler.cpp" )
+            .source( "source/craft.cpp source/context.cpp source/target.cpp source/platform.cpp source/compiler.cpp" )
             ;
 
     ctx.program( "craft" )
