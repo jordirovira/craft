@@ -2,6 +2,8 @@
 // Example craft file to build a simple program
 
 #include <craft.h>
+#include <packages/boost.h>
+
 
 void craft( Context& ctx )
 {
@@ -14,5 +16,18 @@ void craft( Context& ctx )
             .source( "main.cpp" )
             .use( "test_lib" )
             .is_default();
+
+    // Set up boost libraries
+    packages::boost::craft( ctx,
+                            packages::boost::options::static_link
+                            );
+
+    // Define a program
+    ctx.program( "test_program_boost" )
+            .source( "main.cpp" )
+            .use( "test_lib" )
+            //.use( "boost_system" )
+            .is_default();
+
 }
 

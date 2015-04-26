@@ -25,7 +25,7 @@ public:
     //! \param target
     //! \param includePaths
     //!
-    void get_compile_dependencies( NodeList& deps, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths );
+    int get_compile_dependencies( NodeList& deps, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths );
 
     //!
     //! \brief link_dynamic_library
@@ -34,25 +34,25 @@ public:
     //! \param objects
     //! \param uses
     //!
-    void get_link_dynamic_library_dependencies( NodeList& deps,
+    int get_link_dynamic_library_dependencies( NodeList& deps,
                                    const std::string& target,
                                    const NodeList& objects,
                                    const std::vector<std::shared_ptr<BuiltTarget>>& uses);
 
-    void get_link_static_library_dependencies( NodeList& deps,
+    int get_link_static_library_dependencies( NodeList& deps,
                                    const std::string& target,
                                    const NodeList& objects );
 
-    void get_link_program_dependencies(NodeList& deps,
+    int get_link_program_dependencies(NodeList& deps,
                                    const NodeList& objects,
                                    const std::vector<std::shared_ptr<BuiltTarget>>& uses);
 
-    void compile( const std::string& source, const std::string& target, const std::vector<std::string>& includePaths );
-    void link_program( const std::string& target,
+    int compile( const std::string& source, const std::string& target, const std::vector<std::string>& includePaths );
+    int link_program( const std::string& target,
                        const NodeList& objects,
                        const std::vector<std::shared_ptr<BuiltTarget>>& uses );
-    void link_static_library( const std::string& target, const NodeList& objects );
-    void link_dynamic_library( const std::string& target,
+    int link_static_library( const std::string& target, const NodeList& objects );
+    int link_dynamic_library( const std::string& target,
                                const NodeList& objects,
                                const std::vector<std::shared_ptr<BuiltTarget>>& uses);
 

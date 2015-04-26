@@ -82,6 +82,7 @@ namespace axe
         virtual void Process( const Event& e ) override
         {
             printf( "[%8s] %s\n", e.m_category.c_str(), e.m_message.c_str() );
+            fflush(stdout);
         }
     };
 

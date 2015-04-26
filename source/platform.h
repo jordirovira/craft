@@ -25,9 +25,6 @@
 class Context;
 class Node;
 typedef std::vector< std::shared_ptr<Node> > NodeList;
-class Target;
-typedef std::vector< std::shared_ptr<Target> > TargetList;
-
 
 
 
@@ -47,6 +44,8 @@ public:
 
     //! Return the default dynamic library file name for this platform.
     CRAFTCOREI_API virtual std::string get_dynamic_library_file_name( const std::string& source ) const = 0;
+
+    CRAFTCOREI_API virtual std::string get_program_file_name( const std::string& source ) const = 0;
 };
 
 
@@ -55,9 +54,10 @@ class PlatformLinux : public Platform
 public:
 
     // Platform interface
-    virtual const char* os() const;
-    virtual bool is_this() const;
-    virtual std::string get_dynamic_library_file_name( const std::string& source ) const;
+    virtual const char* os() const override;
+    virtual bool is_this() const override;
+    virtual std::string get_dynamic_library_file_name( const std::string& source ) const override;
+    virtual std::string get_program_file_name( const std::string& source ) const override;
 
 };
 
@@ -67,8 +67,8 @@ class PlatformLinux32 : public PlatformLinux
 public:
 
     // Platform interface
-    virtual const char* arch() const;
-    virtual bool is_this() const;
+    virtual const char* arch() const override;
+    virtual bool is_this() const override;
 
 };
 
@@ -78,8 +78,8 @@ class PlatformLinux64 : public PlatformLinux
 public:
 
     // Platform interface
-    virtual const char* arch() const;
-    virtual bool is_this() const;
+    virtual const char* arch() const override;
+    virtual bool is_this() const override;
 
 };
 
@@ -89,9 +89,10 @@ class PlatformOSX : public Platform
 public:
 
     // Platform interface
-    virtual const char* os() const;
-    virtual bool is_this() const;
-    virtual std::string get_dynamic_library_file_name( const std::string& source ) const;
+    virtual const char* os() const override;
+    virtual bool is_this() const override;
+    virtual std::string get_dynamic_library_file_name( const std::string& source ) const override;
+    virtual std::string get_program_file_name( const std::string& source ) const override;
 
 };
 
@@ -101,8 +102,8 @@ class PlatformOSX64 : public PlatformOSX
 public:
 
     // Platform interface
-    virtual const char* arch() const;
-    virtual bool is_this() const;
+    virtual const char* arch() const override;
+    virtual bool is_this() const override;
 
 };
 
@@ -166,15 +167,18 @@ struct FileTime
 //!
 FileTime FileGetModificationTime( const std::string& path );
 
+
 //!
 //! \brief Run
+//! \param workingPath
 //! \param command
 //! \param arguments
 //! \param out
 //! \param err
+//! \return
 //!
-extern void Run( const std::string& command,
-                 const std::vector<std::string>& arguments,
-                 std::function<void(const char*)> out = nullptr,
-                 std::function<void(const char*)> err = nullptr );
-
+int Run( const std::string& workingPath,
+         const std::string& command,
+         const std::vector<std::string>& arguments,
+         std::function<void(const char*)> out,
+         std::function<void(const char*)> err );

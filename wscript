@@ -170,11 +170,28 @@ def build(ctx):
 
     ctx.env.CROSA_ROOT = ctx.path.abspath()
 
+    ctx.read_shlib('git2', paths=['/usr/local/lib'])
+    ctx.read_shlib('curl')
+    ctx.read_shlib('z')
+
+    ctx.recurse('extern')
+
     ctx.shlib(
-        source   = 'source/craft.cpp source/context.cpp source/target.cpp source/platform.cpp source/compiler.cpp',
+        source   = '''
+            source/craft.cpp
+            source/context.cpp
+            source/context_plan.cpp
+            source/target.cpp
+            source/download_target.cpp
+            source/unarchive_target.cpp
+            source/custom_target.cpp
+            source/platform.cpp
+            source/compiler.cpp
+            ''',
         target   = 'craft-core',
         defines  = ' CRAFTCOREI_BUILD ',
         includes = 'source',
+        use      = 'curl minizip z',
         )
 
     ctx.program(

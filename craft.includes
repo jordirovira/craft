@@ -1,3 +1,5 @@
 .
 examples
 source
+extern
+extern/zlib-1.2.8/contrib/minizip

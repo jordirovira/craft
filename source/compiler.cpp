@@ -1,6 +1,8 @@
 
-#include "craft_private.h"
+#include "compiler.h"
 
+#include "craft_private.h"
+#include "target.h"
 #include "axe.h"
 #include "platform.h"
 
@@ -77,9 +79,11 @@ void Compiler::build_compile_argument_list( std::vector<std::string>& args, cons
 }
 
 
-void Compiler::get_compile_dependencies( NodeList& deps, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
+int Compiler::get_compile_dependencies( NodeList& deps, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
 {
     AXE_SCOPED_SECTION(get_deps);
+
+    int result = 0;
 
     std::vector<std::string> args;
     build_compile_argument_list(args,source,target,includePaths);
@@ -89,7 +93,7 @@ void Compiler::get_compile_dependencies( NodeList& deps, const std::string& sour
     try
     {
         std::string out, err;
-        Run( m_exec, args,
+        result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
              [&err](const char* text){ err += text; } );
 
@@ -140,13 +144,18 @@ void Compiler::get_compile_dependencies( NodeList& deps, const std::string& sour
     catch(...)
     {
         AXE_LOG( "deps", axe::L_Error, "Execution failed!" );
+        result = -1;
     }
+
+    return result;
 }
 
 
-void Compiler::compile( const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
+int Compiler::compile( const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
 {
     AXE_SCOPED_SECTION(compile);
+
+    int result = 0;
 
     std::vector<std::string> args;
     build_compile_argument_list(args,source,target,includePaths);
@@ -157,7 +166,7 @@ void Compiler::compile( const std::string& source, const std::string& target, co
     try
     {
         std::string out, err;
-        Run( m_exec, args,
+        result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
              [&err](const char* text){ err += text; } );
 
@@ -176,21 +185,26 @@ void Compiler::compile( const std::string& source, const std::string& target, co
     catch(...)
     {
         AXE_LOG( "run", axe::L_Error, "Execution failed!" );
+        result = -1;
     }
+
+    return result;
 }
 
 
-void Compiler::get_link_program_dependencies( NodeList& deps,
+int Compiler::get_link_program_dependencies( NodeList& deps,
                                               const NodeList& objects,
                                               const std::vector<std::shared_ptr<BuiltTarget>>& uses)
 {
     AXE_SCOPED_SECTION(get_deps);
 
+    int result = 0;
+
     deps = objects;
 
     for (size_t i=0; i<uses.size(); ++i)
     {
-        Target* target = uses[i]->m_sourceTarget.get();
+        Target_Base* target = uses[i]->m_sourceTarget.get();
         if ( dynamic_cast<DynamicLibraryTarget*>(target) )
         {
             deps.push_back(uses[i]->m_outputNode);
@@ -208,26 +222,30 @@ void Compiler::get_link_program_dependencies( NodeList& deps,
             AXE_LOG( "Compiler", axe::L_Error, "Program uses an unknown target type [%s].", target->m_name.c_str() );
         }
     }
+
+    return result;
 }
 
 
-void Compiler::link_program( const std::string& target,
+int Compiler::link_program( const std::string& target,
                              const NodeList& objects,
                              const std::vector<std::shared_ptr<BuiltTarget>>& uses )
 {
     AXE_SCOPED_SECTION(link_program);
 
+    int result = 0;
+
     // Gather library options
-    std::vector<std::string> libraryOptions;
-    for( size_t u=0; u<uses.size(); ++u )
-    {
-        std::shared_ptr<BuiltTarget> usedTarget = uses[u];
-        assert( usedTarget );
-        for( size_t p=0; p<usedTarget->m_sourceTarget->m_export_library_options.size(); ++p )
-        {
-            split( usedTarget->m_sourceTarget->m_export_library_options[p], "\t\n ", libraryOptions );
-        }
-    }
+//    std::vector<std::string> libraryOptions;
+//    for( size_t u=0; u<uses.size(); ++u )
+//    {
+//        std::shared_ptr<BuiltTarget> usedTarget = uses[u];
+//        assert( usedTarget );
+//        for( size_t p=0; p<usedTarget->m_sourceTarget->m_export_library_options.size(); ++p )
+//        {
+//            split( usedTarget->m_sourceTarget->m_export_library_options[p], "\t\n ", libraryOptions );
+//        }
+//    }
 
     std::vector<std::string> args;
     args.push_back("-B");
@@ -240,14 +258,14 @@ void Compiler::link_program( const std::string& target,
          args.push_back(objects[i]->m_absolutePath);
     }
 
-    for (size_t i=0; i<libraryOptions.size(); ++i)
-    {
-         args.push_back(libraryOptions[i]);
-    }
+//    for (size_t i=0; i<libraryOptions.size(); ++i)
+//    {
+//         args.push_back(libraryOptions[i]);
+//    }
 
     for (size_t i=0; i<uses.size(); ++i)
     {
-        Target* target = uses[i]->m_sourceTarget.get();
+        Target_Base* target = uses[i]->m_sourceTarget.get();
         if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
         {
             args.push_back("-l");
@@ -259,14 +277,14 @@ void Compiler::link_program( const std::string& target,
             //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library ouput node path [%s].", pathToLib.c_str() );
             args.push_back("-L"+pathToLib);
         }
-        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget*>(target) )
+        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget::Built*>(uses[i].get()) )
         {
             if (lib->m_library_path.size())
             {
                 args.push_back("-L"+lib->m_library_path);
             }
             args.push_back("-l");
-            args.push_back(lib->m_name);
+            args.push_back(target->m_name);
         }
         else if ( dynamic_cast<StaticLibraryTarget*>(target) )
         {
@@ -282,7 +300,7 @@ void Compiler::link_program( const std::string& target,
     try
     {
         std::string out, err;
-        Run( m_exec, args,
+        result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
              [&err](const char* text){ err += text; } );
 
@@ -301,24 +319,30 @@ void Compiler::link_program( const std::string& target,
     catch(...)
     {
         AXE_LOG( "run", axe::L_Error, "Execution failed!" );
+        result = -1;
     }
 
+    return result;
 }
 
 
 
-void Compiler::get_link_static_library_dependencies( NodeList& deps,
+int Compiler::get_link_static_library_dependencies( NodeList& deps,
                                const std::string& target,
                                const NodeList& objects )
 {
     AXE_SCOPED_SECTION(get_deps);
     deps = objects;
+
+    return 0;
 }
 
 
-void Compiler::link_static_library( const std::string& target, const NodeList& objects )
+int Compiler::link_static_library( const std::string& target, const NodeList& objects )
 {
     AXE_SCOPED_SECTION(link_static_lib);
+
+    int result = 0;
 
     std::vector<std::string> args;
     args.push_back("-r");
@@ -334,7 +358,7 @@ void Compiler::link_static_library( const std::string& target, const NodeList& o
     try
     {
         std::string out, err;
-        Run( m_arexec, args,
+        result = Run( "", m_arexec, args,
              [&out](const char* text){ out += text; },
              [&err](const char* text){ err += text; } );
 
@@ -353,22 +377,27 @@ void Compiler::link_static_library( const std::string& target, const NodeList& o
     catch(...)
     {
         AXE_LOG( "run", axe::L_Error, "Execution failed!" );
+        result = -1;
     }
+
+    return result;
 }
 
 
-void Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
+int Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
                                const std::string& target,
                                const NodeList& objects,
                                const std::vector<std::shared_ptr<BuiltTarget>>& uses )
 {
     AXE_SCOPED_SECTION(get_deps);
 
+    int result = 0;
+
     deps = objects;
 
     for (size_t i=0; i<uses.size(); ++i)
     {
-        Target* target = uses[i]->m_sourceTarget.get();
+        Target_Base* target = uses[i]->m_sourceTarget.get();
         if ( dynamic_cast<DynamicLibraryTarget*>(target) )
         {
             deps.push_back(uses[i]->m_outputNode);
@@ -382,14 +411,18 @@ void Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
             AXE_LOG( "Compiler", axe::L_Error, "Dynamic library uses an unknown target type [%s].", target->m_name.c_str() );
         }
     }
+
+    return result;
 }
 
 
-void Compiler::link_dynamic_library( const std::string& target,
+int Compiler::link_dynamic_library( const std::string& target,
                                      const NodeList& objects,
                                      const std::vector<std::shared_ptr<BuiltTarget>>& uses )
 {
     AXE_SCOPED_SECTION(link_shared_lib);
+
+    int result = 0;
 
     // Gather parameters
     std::vector<std::string> args;
@@ -406,7 +439,7 @@ void Compiler::link_dynamic_library( const std::string& target,
 
     for (size_t i=0; i<uses.size(); ++i)
     {
-        Target* target = uses[i]->m_sourceTarget.get();
+        Target_Base* target = uses[i]->m_sourceTarget.get();
         if ( auto lib = dynamic_cast<DynamicLibraryTarget*>(target) )
         {
             args.push_back("-l");
@@ -418,14 +451,14 @@ void Compiler::link_dynamic_library( const std::string& target,
             //AXE_LOG( "compiler", axe::L_Verbose, "Used dynamic library ouput node path [%s].", pathToLib.c_str() );
             args.push_back("-L"+pathToLib);
         }
-        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget*>(target) )
+        else if ( auto lib = dynamic_cast<ExternDynamicLibraryTarget::Built*>(uses[i].get()) )
         {
             if (lib->m_library_path.size())
             {
                 args.push_back("-L"+lib->m_library_path);
             }
             args.push_back("-l");
-            args.push_back(lib->m_name);
+            args.push_back(target->m_name);
         }
         else
         {
@@ -437,7 +470,7 @@ void Compiler::link_dynamic_library( const std::string& target,
     try
     {
         std::string out, err;
-        Run( m_exec, args,
+        result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
              [&err](const char* text){ err += text; } );
 
@@ -456,6 +489,9 @@ void Compiler::link_dynamic_library( const std::string& target,
     catch(...)
     {
         AXE_LOG( "run", axe::L_Error, "Execution failed!" );
+        result = -1;
     }
+
+    return result;
 }
 

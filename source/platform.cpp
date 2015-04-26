@@ -46,6 +46,14 @@ std::string PlatformLinux::get_dynamic_library_file_name( const std::string& sou
 }
 
 
+std::string PlatformLinux::get_program_file_name( const std::string& sourceName ) const
+{
+    std::string result = sourceName;
+    result = FileReplaceExtension(result,"");
+    return result;
+}
+
+
 const char* PlatformLinux32::arch() const
 {
     return "x32";
@@ -104,6 +112,14 @@ std::string PlatformOSX::get_dynamic_library_file_name( const std::string& sourc
 {
     std::string result = std::string("lib")+sourceName;
     result = FileReplaceExtension(result,"dylib");
+    return result;
+}
+
+
+std::string PlatformOSX::get_program_file_name( const std::string& sourceName ) const
+{
+    std::string result = sourceName;
+    result = FileReplaceExtension(result,"");
     return result;
 }
 
@@ -241,11 +257,14 @@ FileTime FileGetModificationTime( const std::string& path )
 #include <unistd.h>
 #include <cstdio>
 
-void Run( const std::string& command,
-          const std::vector<std::string>& arguments,
-          std::function<void(const char*)> out,
-          std::function<void(const char*)> err )
+//! Warning: don't use this in concurrent scenarios!
+int Run( const std::string& workingPath,
+         const std::string& command,
+         const std::vector<std::string>& arguments,
+         std::function<void(const char*)> out,
+         std::function<void(const char*)> err )
 {
+    int result = 0;
 
     std::stringstream logstr;
     logstr << command << " ";
@@ -265,7 +284,7 @@ void Run( const std::string& command,
     if (childPid<0)
     {
         // Failed to execute
-        assert( false );
+        result = -1;
     }
     else if (childPid==0)
     {
@@ -280,6 +299,16 @@ void Run( const std::string& command,
         close(pipes[CHILD_OUT_PIPE][1]);
         close(pipes[CHILD_ERR_PIPE][1]);
 
+        // Change the path if necessary
+        if (workingPath.size())
+        {
+            if (chdir( workingPath.c_str()) !=0 )
+            {
+                // Failed to enter the working path
+                exit(-1);
+            }
+        }
+
         // Build a raw list of char* for the command and arguments
         // const_casting is apparently safe here.
         char** argv = new char* [arguments.size()+2];
@@ -293,7 +322,9 @@ void Run( const std::string& command,
         // Call
         execv(argv[0], argv);
 
+        // If we are here, we failed to exec.
         delete[] argv;
+        exit(-1);
     }
     else
     {
@@ -325,12 +356,13 @@ void Run( const std::string& command,
             if (ret == 0)
             {
                 printf("time out!");
-                finished = true;
+                finished = false;
             }
             else if (ret < 0)
             {
                 // error occurred
                 finished = true;
+                result = -1;
             }
             else
             {
@@ -398,12 +430,22 @@ void Run( const std::string& command,
             if (waitpid( childPid, &childStatus, WNOHANG )!=0 )
             {
                 finished = true;
+                if (WIFEXITED(childStatus))
+                {
+                    result = WEXITSTATUS(childStatus);
+                }
+                else
+                {
+                    result = -1;
+                }
             }
         }
 
         close(pipes[CHILD_OUT_PIPE][0]);
         close(pipes[CHILD_ERR_PIPE][0]);
     }
+
+    return result;
 }
 
 

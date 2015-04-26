@@ -9,9 +9,6 @@ void craft( Context& ctx )
     // methods like waf.
     ctx.set_build_folder("build/craft");
 
-    // Set up boost libraries to be linked dynamically
-    //packages::boost::craft( ctx, packages::boost::options::dynamic_link );
-
     ctx.dynamic_library( "craft-core" )
             .source( "source/craft.cpp source/context.cpp source/target.cpp source/platform.cpp source/compiler.cpp" )
             ;

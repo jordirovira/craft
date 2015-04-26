@@ -3,6 +3,7 @@
 
 #include "axe.h"
 #include "craft_core.h"
+#include "target.h"
 
 #include <cassert>
 
@@ -99,32 +100,46 @@ int main( int argc, const char** argv )
 
     if ( !FileExists( root+"craftfile" ) )
     {
-        cout << "Couldn't find craftfile" << endl;
+        AXE_LOG( "craft", axe::L_Fatal, "Couldn't find craftfile in [%s].", root.c_str() );
     }
     else
     {
         // Compile it into a dynamic library
-        std::shared_ptr<Context> ctx = Context::Create( true, false );
-        ctx->set_current_configuration( "debug" );
+        std::shared_ptr<Context> ctx = std::make_shared<Context>( true, false );
 
         // \TODO
         ctx->extern_dynamic_library( "craft-core" )
-                .export_include( workspace+"/source" )
                 .library_path( workspace+"/build/waf/OSX-x86_64-gcc6.1.0/debug/")
+                .export_include( workspace+"/source" )  // To find craft.h
+                .export_include( workspace )            // To find packages
                 ;
 
         DynamicLibraryTarget& target = ctx->dynamic_library( "craftfile" );
         target.source( root+"craftfile" )
                 .use( "craft-core" );
 
-        auto builtTarget = target.build(*ctx);
-        ctx->run();
-
-        // Load and run the dynamic library entry method
+        std::shared_ptr<ContextPlan> ctxPlan = std::make_shared<ContextPlan>( *ctx );
+        ctxPlan->set_current_configuration( "debug" );
+        auto builtTarget = ctxPlan->get_built_target(target.m_name);
+        if (builtTarget->has_errors())
         {
-            AXE_SCOPED_SECTION_DETAILED(RunningCraftfile,"Running craftfile");
-            std::string craftLibrary = builtTarget->m_outputNode->m_absolutePath;
-            LoadAndRun( craftLibrary.c_str(), "craft_entry", workspace.c_str(), &configurations[0] );
+            AXE_LOG( "craft", axe::L_Fatal, "Failed to build the craftfile." );
+        }
+        else
+        {
+            int buildCraftFileResult = ctxPlan->run();
+
+            if (buildCraftFileResult!=0)
+            {
+                AXE_LOG( "craft", axe::L_Fatal, "Failed to build the craftfile." );
+            }
+            else
+            {
+                // Load and run the dynamic library entry method
+                AXE_SCOPED_SECTION_DETAILED(RunningCraftfile,"Running craftfile");
+                std::string craftLibrary = builtTarget->m_outputNode->m_absolutePath;
+                LoadAndRun( craftLibrary.c_str(), "craft_entry", workspace.c_str(), &configurations[0] );
+            }
         }
     }
 
