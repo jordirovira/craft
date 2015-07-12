@@ -126,8 +126,16 @@ int Compiler::get_compile_dependencies( NodeList& deps, const std::string& sourc
                 {
                     //AXE_LOG( "dep", axe::L_Verbose, dep );
 
-                    std::string dep_absolute_path = FileGetCurrentPath();
-                    dep_absolute_path += FileSeparator()+dep;
+                    std::string dep_absolute_path;
+                    if (FileIsAbsolute(dep))
+                    {
+                        dep_absolute_path = dep;
+                    }
+                    else
+                    {
+                        dep_absolute_path = FileGetCurrentPath();
+                        dep_absolute_path += FileSeparator()+dep;
+                    }
 
                     std::shared_ptr<Node> targetNode = std::make_shared<Node>();
                     targetNode->m_absolutePath = dep_absolute_path;

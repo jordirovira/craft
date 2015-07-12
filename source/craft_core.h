@@ -218,7 +218,7 @@ public:
     CRAFTCOREI_API virtual int run();
 
 
-    CRAFTCOREI_API virtual bool IsTargetOutdated( FileTime target_time, const NodeList& dependencies );
+    CRAFTCOREI_API virtual bool IsTargetOutdated( FileTime target_time, const NodeList& dependencies, std::shared_ptr<Node>* failed=nullptr );
 
     //! Vector of tasks being filled up while planning
     std::vector<std::shared_ptr<Task>> m_tasks;

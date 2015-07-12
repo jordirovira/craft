@@ -205,6 +205,7 @@ std::shared_ptr<BuiltTarget> ContextPlan::get_built_target( const std::string& n
         }
         else
         {
+            AXE_LOG("plan",axe::L_Error,"Reused target [%s]", name.c_str());
             result = it->second;
         }
     }
@@ -236,7 +237,7 @@ bool ContextPlan::IsNodePending( const Node& node )
 }
 
 
-bool ContextPlan::IsTargetOutdated( FileTime target_time, const NodeList& dependencies )
+bool ContextPlan::IsTargetOutdated( FileTime target_time, const NodeList& dependencies, std::shared_ptr<Node>* failed )
 {
     if ( target_time.IsNull() )
     {
@@ -247,12 +248,20 @@ bool ContextPlan::IsTargetOutdated( FileTime target_time, const NodeList& depend
     {
         if (IsNodePending(*n))
         {
+            if (failed)
+            {
+                (*failed) = n;
+            }
             return true;
         }
 
         FileTime dep_time = FileGetModificationTime( n->m_absolutePath );
         if (dep_time.IsNull() || dep_time>target_time)
         {
+            if (failed)
+            {
+                (*failed) = n;
+            }
             return true;
         }
     }

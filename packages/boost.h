@@ -18,7 +18,7 @@ enum options
 
 
 const std::string s_boost_version = "boost_1_52_0";
-const std::string s_boost_url = "http://switch.dl.sourceforge.net/project/boost/boost/1.52.0/boost_1_52_0.zip";
+const std::string s_boost_url = "http://downloads.sourceforge.net/project/boost/boost/1.52.0/boost_1_52_0.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fboost%2Ffiles%2Fboost%2F1.52.0%2F&ts=1436720498&use_mirror=vorboss";
 
 
 std::shared_ptr<BuiltTarget> boost_custom_build(ContextPlan& ctx, Target_Base& thisTarget, unsigned options);
@@ -29,21 +29,8 @@ void craft( Context& ctx, unsigned options = options::static_link )
     std::string option_string;
     option_string += " -lboost_filesystem -lboost_thread -lboost_timer -lboost_chrono -lboost_iostreams -lpthread";
 
-    ctx.extern_dynamic_library("boost-filesystem")
-            .export_include("/usr/include")
-            .export_library_options( option_string )
-            //.library_path( workspace+"/build/waf/OSX-x86_64-gcc6.1.0/debug/")
-            .use("boost-custom-build")
-            ;
-
-//    ctx->extern_dynamic_library( "craft-core" )
-//            .export_include( workspace+"/source" )
-//            .library_path( workspace+"/build/waf/OSX-x86_64-gcc6.1.0/debug/")
-//            .use("boost-custom-build")
-//            ;
-
     ctx.extern_dynamic_library("boost_system")
-            .export_include("boost-source/"+s_boost_version)
+            .export_include(ctx.get_current_path()+FileSeparator()+"boost-source"+FileSeparator()+s_boost_version)
             .library_path( [](const ContextPlan& ctx){ return ctx.get_current_path()+FileSeparator()+ctx.get_current_configuration()+"/boost/lib"; })
             .use("boost-build")
             ;

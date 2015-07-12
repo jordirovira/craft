@@ -107,7 +107,7 @@ std::shared_ptr<class BuiltTarget> DownloadTarget::build( ContextPlan& ctx )
                     /* Check for errors */
                     if (res != CURLE_OK)
                     {
-                        AXE_LOG( "download", axe::L_Error, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res) );
+                        AXE_LOG( "download", axe::L_Error, "curl_easy_perform() failed: [%s] while trying to download [%s]", curl_easy_strerror(res), m_url.c_str() );
                         result = -1;
                     }
 

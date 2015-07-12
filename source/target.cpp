@@ -266,7 +266,12 @@ void ProgramTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, const Node
             compiler.set_configuration( ctx.get_current_configuration() );
             compiler.get_link_program_dependencies( dependencies, objects, uses );
 
-            outdated = ctx.IsTargetOutdated( target_time, dependencies );
+            std::shared_ptr<Node> failed;
+            outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
+            if (outdated)
+            {
+                AXE_LOG("deps", axe::L_Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+            }
         }
     }
 
@@ -326,7 +331,12 @@ void StaticLibraryTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, cons
             NodeList dependencies;
             compiler.get_link_static_library_dependencies( dependencies, target, objects );
 
-            outdated = ctx.IsTargetOutdated( target_time, dependencies );
+            std::shared_ptr<Node> failed;
+            outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
+            if (outdated)
+            {
+                AXE_LOG("deps", axe::L_Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+            }
         }
     }
 
@@ -389,7 +399,12 @@ void DynamicLibraryTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, con
             compiler.set_configuration( ctx.get_current_configuration() );
             compiler.get_link_dynamic_library_dependencies( dependencies, target, objects, uses );
 
-            outdated = ctx.IsTargetOutdated( target_time, dependencies );
+            std::shared_ptr<Node> failed;
+            outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
+            if (outdated)
+            {
+                AXE_LOG("deps", axe::L_Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+            }
         }
     }
 
@@ -452,7 +467,12 @@ std::shared_ptr<Task> ObjectTarget::object( ContextPlan& ctx, const std::string&
             compiler.set_configuration( ctx.get_current_configuration() );
             compiler.get_compile_dependencies( dependencies, name, target, includePaths );
 
-            outdated = ctx.IsTargetOutdated( target_time, dependencies );
+            std::shared_ptr<Node> failed;
+            outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
+            if (outdated)
+            {
+                AXE_LOG("deps", axe::L_Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+            }
         }
     }
 

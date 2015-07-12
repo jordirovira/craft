@@ -24,9 +24,9 @@ void craft( Context& ctx )
 
     // Define a program
     ctx.program( "test_program_boost" )
-            .source( "main.cpp" )
+            .source( "main_boost.cpp" )
             .use( "test_lib" )
-            //.use( "boost_system" )
+            .use( "boost_system" )
             .is_default();
 
 }
