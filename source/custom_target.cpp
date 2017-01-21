@@ -9,8 +9,6 @@
 #include <sstream>
 #include <vector>
 
-#include <curl/curl.h>
-
 
 CustomTarget& CustomTarget::custom_build(std::function<std::shared_ptr<class BuiltTarget>(ContextPlan&,Target_Base&)> buildMethod)
 {

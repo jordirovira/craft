@@ -12,8 +12,9 @@ void craft( Context& ctx );
 // with dlopen.
 extern "C"
 {
+    CRAFTCOREI_API void craft_entry( const char* workspacePath, const char** configurations );
 
-    CRAFTCOREI_API void craft_entry( const char* workspacePath, const char** configurations )
+    void craft_entry( const char* workspacePath, const char** configurations )
     {
         // Create a context for the build process
         std::shared_ptr<Context> context = std::make_shared<Context>();

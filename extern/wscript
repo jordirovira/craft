@@ -5,14 +5,15 @@
 import sys
 
 def build(ctx):
-    ctx.stlib(
-        source   = '''
-            zlib-1.2.8/contrib/minizip/unzip.c
-            zlib-1.2.8/contrib/minizip/ioapi.c
-            ''',
-        use 	 = "z",
-        includes = ['zlib-1.2.8','zlib-1.2.8/contrib/minizip'],
-        export_includes = ['zlib-1.2.8/contrib/minizip'],
-        name     = 'minizip',
-        target   = 'minizip',
-        )
+    print "Ignored minizip."
+#    ctx.stlib(
+#        source   = '''
+#            zlib-1.2.8/contrib/minizip/unzip.c
+#            zlib-1.2.8/contrib/minizip/ioapi.c
+#            ''',
+#        use 	 = "z",
+#        includes = ['zlib-1.2.8','zlib-1.2.8/contrib/minizip'],
+#        export_includes = ['zlib-1.2.8/contrib/minizip'],
+#        name     = 'minizip',
+#        target   = 'minizip',
+#        )

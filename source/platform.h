@@ -21,6 +21,9 @@
 
 #endif
 
+#if _MSC_VER
+    #include <Windows.h>
+#endif
 
 class Context;
 class Node;
@@ -84,6 +87,30 @@ public:
 };
 
 
+class PlatformWindows : public Platform
+{
+public:
+
+    // Platform interface
+    virtual const char* os() const override;
+    virtual bool is_this() const override;
+    virtual std::string get_dynamic_library_file_name( const std::string& source ) const override;
+    virtual std::string get_program_file_name( const std::string& source ) const override;
+
+};
+
+
+class PlatformWindows64 : public PlatformWindows
+{
+public:
+
+    // Platform interface
+    virtual const char* arch() const override;
+    virtual bool is_this() const override;
+
+};
+
+
 class PlatformOSX : public Platform
 {
 public:
@@ -108,24 +135,52 @@ public:
 };
 
 
-extern bool FileExists( const std::string& path );
-extern std::string FileGetCurrentPath();
-extern std::string FileSeparator();
-extern std::string FileReplaceExtension( const std::string& source, const std::string& extension );
+extern CRAFTCOREI_API bool FileExists( const std::string& path );
+extern CRAFTCOREI_API std::string FileGetCurrentPath();
+extern CRAFTCOREI_API std::string FileSeparator();
+extern CRAFTCOREI_API std::string FileReplaceExtension( const std::string& source, const std::string& extension );
 
 //! Return the parent directory of the path (without the filename or last directory name if it
 //! doesn't have a path separator at the end)
-extern std::string FileGetPath( const std::string& source );
+extern CRAFTCOREI_API std::string FileGetPath( const std::string& source );
 
-extern bool FileIsAbsolute( const std::string& path );
+extern CRAFTCOREI_API bool FileIsAbsolute( const std::string& path );
 
 //! Create all the folders in the path if they don't exist already.
 //! \return true if any folder was actually created
-extern bool FileCreateDirectories( const std::string& path );
+extern CRAFTCOREI_API bool FileCreateDirectories( const std::string& path );
 
 //!
 //! \brief The FileTime struct
 //!
+#ifdef _MSC_VER
+struct CRAFTCOREI_API FileTime
+{
+    FileTime()
+    {
+        m_time = 0;
+    }
+
+    bool IsNull() const
+    {
+        return m_time==0;
+    }
+
+    time_t m_time;
+
+    friend bool operator<( const FileTime& left, const FileTime& right )
+    {
+        return left.m_time<right.m_time;
+    }
+
+    friend bool operator>( const FileTime& left, const FileTime& right )
+    {
+        return left.m_time>right.m_time;
+    }
+};
+
+#else
+
 struct FileTime
 {
     FileTime()
@@ -159,13 +214,14 @@ struct FileTime
                      );
     }
 };
+#endif
 
 //!
 //! \brief FileGetModificationTime
 //! \param path
 //! \return
 //!
-FileTime FileGetModificationTime( const std::string& path );
+FileTime CRAFTCOREI_API FileGetModificationTime( const std::string& path );
 
 
 //!
@@ -177,8 +233,16 @@ FileTime FileGetModificationTime( const std::string& path );
 //! \param err
 //! \return
 //!
-int Run( const std::string& workingPath,
+extern CRAFTCOREI_API int Run( const std::string& workingPath,
          const std::string& command,
          const std::vector<std::string>& arguments,
          std::function<void(const char*)> out,
          std::function<void(const char*)> err );
+
+
+
+//!
+//!
+//!
+extern CRAFTCOREI_API void LoadAndRun( const char* lib, const char* methodName, const char* workspace, const char** configurations );
+

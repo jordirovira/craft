@@ -27,7 +27,7 @@
 #endif
 
 
-extern void craft_core_initialize( axe::Kernel* log_kernel=nullptr );
+extern CRAFTCOREI_API void craft_core_initialize( axe::Kernel* log_kernel=nullptr );
 
 class Toolchain;
 class Context;
@@ -72,9 +72,9 @@ class Context
     friend class ContextPlan;
 public:
 
-    Context( bool buildFolderHasHost=true, bool buildFolderHasTarget=true );
+    CRAFTCOREI_API Context( bool buildFolderHasHost=true, bool buildFolderHasTarget=true );
 
-    virtual ~Context() {}
+    CRAFTCOREI_API virtual ~Context() {}
 
     // Build configuration
 
@@ -117,9 +117,9 @@ public:
 
     CRAFTCOREI_API virtual class ObjectTarget& object( const std::string& name, const std::vector<std::string>& includePaths );
 
-    CRAFTCOREI_API virtual class DownloadTarget& download( const std::string& name );
+    //CRAFTCOREI_API virtual class DownloadTarget& download( const std::string& name );
 
-    CRAFTCOREI_API virtual class UnarchiveTarget& unarchive( const std::string& name );
+    //CRAFTCOREI_API virtual class UnarchiveTarget& unarchive( const std::string& name );
 
     CRAFTCOREI_API virtual class CustomTarget& target( const std::string& name );
 

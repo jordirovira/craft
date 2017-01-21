@@ -29,12 +29,15 @@ Context::Context( bool buildFolderHasHost,
     m_platforms.push_back( std::make_shared<PlatformLinux32>() );
     m_platforms.push_back( std::make_shared<PlatformLinux64>() );
     m_platforms.push_back( std::make_shared<PlatformOSX64>() );
+    m_platforms.push_back( std::make_shared<PlatformWindows64>() );
     m_host_platform = get_this_platform();
 
     // \todo See if a different target has been specified in the command line?
     m_target_platform = m_host_platform;
 
     // Initialize the toolchains
+    m_toolchains.push_back(std::make_shared<Toolchain>());
+    m_toolchain = m_toolchains[0];
 
     // Target folder may depend on host and target platforms
     update_target_folder();
@@ -190,7 +193,7 @@ ObjectTarget& Context::object( const std::string& name, const std::vector<std::s
     return *target;
 }
 
-
+/*
 DownloadTarget& Context::download( const std::string& name )
 {
     std::shared_ptr<DownloadTarget> target = std::make_shared<DownloadTarget>();
@@ -211,7 +214,7 @@ UnarchiveTarget& Context::unarchive( const std::string& name )
 
     return *target;
 }
-
+*/
 
 CustomTarget& Context::target( const std::string& name )
 {

@@ -14,7 +14,9 @@ AXE_IMPLEMENT()
 
 void craft_core_initialize( axe::Kernel* log_kernel )
 {
+#if defined(AXE_ENABLE)
     axe::s_kernel = log_kernel;
+#endif
 }
 
 

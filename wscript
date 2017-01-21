@@ -73,12 +73,12 @@ def configure(ctx):
                                 'CoreAudio','AudioToolbox','AudioUnit','IOKit']
 
     elif ctx.env.TARGETPLATFORM=='Linux':
-        ctx.check(features='cxx cxxprogram', lib=['dl'], cflags=['-Wall'], uselib_store='GL')
+        ctx.check(features='cxx cxxprogram', lib=['dl'], cflags=['-Wall'], uselib_store='DL')
 
     # Common compilation flags
     if ctx.env.CXX_NAME=='msvc':
-        common_CFLAGS                   = ['/nologo', '/EHsc', '/W3', '/wd4996', '/wd4819']
-        common_CXXFLAGS                 = ['/nologo', '/EHsc', '/W3', '/WX', '/wd4996', '/wd4819']
+        common_CFLAGS                   = ['/nologo', '/EHsc', '/W3', '/wd4996', '/wd4819', '/FS']
+        common_CXXFLAGS                 = ['/nologo', '/EHsc', '/W3', '/WX', '/wd4996', '/wd4819', '/FS']
         common_LINKFLAGS                = ['/nologo', '/MANIFEST', '/LARGEADDRESSAWARE']
 
     elif ctx.env.TARGETPLATFORM=='OSX':
@@ -100,7 +100,7 @@ def configure(ctx):
         #presume 'gcc' or compatible
         common_CFLAGS                   = []
         common_CXXFLAGS                 = ['-Wall', '-std=c++0x', '-fPIC']
-        common_LINKFLAGS                = []
+        common_LINKFLAGS                = ['-Wl,-rpath,$ORIGIN']
         if ctx.env.TARGETPLATFORM!='Windows':
             common_CXXFLAGS         += ['-Werror']
 
@@ -170,9 +170,9 @@ def build(ctx):
 
     ctx.env.CROSA_ROOT = ctx.path.abspath()
 
-    ctx.read_shlib('git2', paths=['/usr/local/lib'])
-    ctx.read_shlib('curl')
-    ctx.read_shlib('z')
+    #ctx.read_shlib('git2', paths=['/usr/local/lib'])
+    #ctx.read_shlib('curl')
+    #ctx.read_shlib('z')
 
     ctx.recurse('extern')
 
@@ -182,25 +182,27 @@ def build(ctx):
             source/context.cpp
             source/context_plan.cpp
             source/target.cpp
-            source/download_target.cpp
-            source/unarchive_target.cpp
             source/custom_target.cpp
             source/platform.cpp
             source/compiler.cpp
-            ''',
+            '''
+#            '''
+#            source/download_target.cpp
+#            source/unarchive_target.cpp
+#            '''
+            ,
         target   = 'craft-core',
-        defines  = ' CRAFTCOREI_BUILD ',
+        defines  = 'CRAFTCOREI_BUILD AXE_ENABLE=1',
         includes = 'source',
-        use      = 'curl minizip z',
+#        use      = 'curl minizip z',
         )
 
     ctx.program(
         source   = 'source/main.cpp',
         target   = 'craft',
-        use      = ' craft-core',
-        lib      = ' dl ',
+        use      = 'craft-core DL',
         includes = 'source',
-        linkflags  = '-Wl,-rpath,$ORIGIN'
+        defines  = 'AXE_ENABLE=1',
         )
 
 
