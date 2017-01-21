@@ -120,18 +120,18 @@ int ContextPlan::run()
 {
     AXE_SCOPED_SECTION(tasks);
 
-    AXE_LOG( "task", axe::L_Info, "%3d tasks", m_tasks.size() );
+    AXE_LOG( "task", axe::Level::Info, "%3d tasks", m_tasks.size() );
 
     int result = 0;
 
     // Things should happen here.
     for ( std::size_t i=0; i<m_tasks.size(); ++i )
     {
-        AXE_LOG( "task", axe::L_Info, "[%3d of %3d] %s", i+1, m_tasks.size(), m_tasks[i]->m_type.c_str() );
+        AXE_LOG( "task", axe::Level::Info, "[%3d of %3d] %s", i+1, m_tasks.size(), m_tasks[i]->m_type.c_str() );
         int taskResult = m_tasks[i]->m_runMethod();
         if (taskResult!=0)
         {
-            AXE_LOG( "task", axe::L_Error, "failed! [%d]", taskResult );
+            AXE_LOG( "task", axe::Level::Error, "failed! [%d]", taskResult );
             result = -1;
             break;
         }
@@ -169,7 +169,7 @@ std::shared_ptr<BuiltTarget> ContextPlan::get_built_target( const std::string& n
 
     if (!target)
     {
-        AXE_LOG("fatal",axe::L_Error,"Unknown target [%s]", name.c_str());
+        AXE_LOG("fatal",axe::Level::Error,"Unknown target [%s]", name.c_str());
         assert(target);
     }
 
@@ -181,7 +181,7 @@ std::shared_ptr<BuiltTarget> ContextPlan::get_built_target( const std::string& n
         auto it = m_currentBuiltTargets->m_targets.find(target);
         if ( it==m_currentBuiltTargets->m_targets.end() )
         {
-            AXE_LOG("plan",axe::L_Error,"Building new target [%s], %d built", name.c_str(), m_currentBuiltTargets->m_targets.size() );
+            AXE_LOG("plan",axe::Level::Error,"Building new target [%s], %d built", name.c_str(), m_currentBuiltTargets->m_targets.size() );
             result = target->build( *this );
             result->m_sourceTarget = target;
             m_currentBuiltTargets->m_targets[target] = result;
@@ -189,7 +189,7 @@ std::shared_ptr<BuiltTarget> ContextPlan::get_built_target( const std::string& n
         }
         else
         {
-            AXE_LOG("plan",axe::L_Error,"Reused target [%s]", name.c_str());
+            AXE_LOG("plan",axe::Level::Error,"Reused target [%s]", name.c_str());
             result = it->second;
         }
     }
@@ -205,7 +205,7 @@ std::shared_ptr<BuiltTarget> ContextPlan::get_built_target( const std::string& n
         }
         else
         {
-            AXE_LOG("plan",axe::L_Error,"Reused target [%s]", name.c_str());
+            AXE_LOG("plan",axe::Level::Error,"Reused target [%s]", name.c_str());
             result = it->second;
         }
     }

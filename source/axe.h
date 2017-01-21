@@ -14,28 +14,132 @@
 #include <string>
 #include <sstream>
 #include <cstdarg>
-#include <cstdio>
+
 #include <algorithm>
 #include <memory>
+#include <chrono>
+#include <thread>
+#include <atomic>
+#include <tuple>
+#include <iostream>
+#include <iomanip>
+#include <ctime>
+#include <climits>
+#include <cstring>
+
 
 //! This macro enables it all. It shouldn't be here, but specified in the command line or project configuration.
-#define AXE_ENABLE    1
+//#define AXE_ENABLE    1
+
+//! This is used to filter logging at compile time.
+#define AXE_COMPILE_LEVEL_LIMIT   axe::Level::All
+
+
+// Platform-specific requirements
+#ifdef _MSC_VER
+    #include <Windows.h>
+#else
+    #include <unistd.h>
+#endif
+
 
 namespace axe
 {
-    typedef enum
-    {
-        L_Fatal,
-        L_Error,
-        L_Warning,
-        L_Info,
-        L_Debug,
-        L_Verbose,
-        L_All
-    } Level;
 
+    // Platform helpers
+    namespace platform
+    {
+        std::string GetHostName();
+
+        // Platform-specific helpers implementation
+        #ifdef _MSC_VER
+
+            inline std::string GetHostName()
+            {
+                std::string result;
+
+                TCHAR  infoBuf[MAX_COMPUTERNAME_LENGTH+1];
+                DWORD  bufCharCount = MAX_COMPUTERNAME_LENGTH+1;
+
+                // Get and display the name of the computer.
+                if( !GetComputerName( infoBuf, &bufCharCount ) )
+                {
+                    result = "unknown-host";
+                }
+                else
+                {
+#ifdef _UNICODE
+                    char strInfoBuf[MAX_COMPUTERNAME_LENGTH+1];
+                    WideCharToMultiByte(CP_ACP, 0, infoBuf, -1, strInfoBuf, MAX_COMPUTERNAME_LENGTH+1, NULL, NULL);
+                    result = strInfoBuf;
+#else
+                    result = infoBuf;
+#endif
+                }
+
+                // Get and display the user name.
+            //    if( !GetUserName( infoBuf, &bufCharCount ) )
+            //      printError( TEXT("GetUserName") );
+            //    _tprintf( TEXT("\nUser name:          %s"), infoBuf );
+
+                return result;
+            }
+
+        #else
+
+            inline std::string GetHostName()
+            {
+                char hostname[HOST_NAME_MAX];
+                char username[LOGIN_NAME_MAX];
+                int result;
+                result = gethostname(hostname, HOST_NAME_MAX);
+                if (result)
+                {
+                    return "unknown-host";
+                }
+                result = getlogin_r(username, LOGIN_NAME_MAX);
+                if (result)
+                {
+                    return "unknown-host";
+                }
+
+                return hostname;
+            }
+
+        #endif
+
+    } // namespace platform
+
+
+    enum class EventType : uint8_t
+    {
+        Null,
+        Message,
+        RecursiveSpanBegin,
+        RecursiveSpanEnd,
+
+        // For these types the message is a field name and the value is in data of the appropiate type.
+        StringValue,
+        TimeValue,      // Calendar date+time up to seconds
+        IntValue,
+        FloatValue,
+        _Count
+    };
+
+    enum class Level : uint8_t
+    {
+        Fatal,
+        Error,
+        Warning,
+        Info,
+        Debug,
+        Verbose,
+        All
+    };
+
+    // Microseconds from an arbitray point (usually the axe kernel creation time)
     typedef int64_t AxeTime;
-    typedef int32_t ThreadId;
+    typedef std::thread::id ThreadId;
 
     class Kernel;
     class Bin;
@@ -44,18 +148,22 @@ namespace axe
 
     extern class Kernel* s_kernel;
 
-    inline AxeTime get_now()
-    {
-        return 0;
-    }
-
     class Event
     {
     public:
-        Event( AxeTime time, ThreadId thread, Level level, const char* category, const std::string& message )
+        Event()
+        {
+            m_time = 0;
+            m_thread = std::thread::id();
+            m_level = Level::Fatal;
+            m_type = EventType::Null;
+        }
+
+        Event( AxeTime time, ThreadId thread, EventType type, Level level, const char* category, const std::string& message )
         {
             m_time = time;
             m_thread = thread;
+            m_type = type;
             m_level = level;
             m_category = category;
             m_message = message;
@@ -64,9 +172,40 @@ namespace axe
         AxeTime m_time;
         ThreadId m_thread;
         Level m_level;
+        EventType m_type;
         std::string m_category;
-        std::string m_message;
-    };
+        std::string m_message;        
+        std::vector<uint8_t> m_data;
+
+        void EncodeStringData( const std::string& value )
+        {
+            if (value.size())
+            {
+                m_data.resize(value.size());
+                memcpy(&m_data[0],&value[0],value.size());
+            }
+        }
+
+        void EncodeTimeData( const std::time_t& value )
+        {
+            uint64_t seconds = (uint64_t)value;
+            m_data.resize(sizeof(seconds));
+            memcpy(&m_data[0],&seconds,sizeof(seconds));
+        }
+
+        void EncodeIntData( int64_t value )
+        {
+            m_data.resize(sizeof(value));
+            memcpy(&m_data[0],&value,sizeof(value));
+        }
+
+        void EncodeFloatData( float value )
+        {
+            m_data.resize(sizeof(value));
+            memcpy(&m_data[0],&value,sizeof(value));
+        }
+
+     };
 
     class Bin
     {
@@ -83,8 +222,198 @@ namespace axe
 
         virtual void Process( const Event& e ) override
         {
-            printf( "[%8s] %s\n", e.m_category.c_str(), e.m_message.c_str() );
-            fflush(stdout);
+            // Ignore spans and others.
+            if (e.m_type==EventType::Message)
+            {
+                printf( "[%8s] %s\n", e.m_category.c_str(), e.m_message.c_str() );
+                fflush(stdout);
+            }
+        }
+    };
+
+    class FileBin : public Bin
+    {
+    public:
+        FILE* m_pFile = nullptr;
+        uint64_t m_writtenSize = 0;
+        uint64_t m_writeLimit = 256*1024*1024;
+
+#define AXE_FILEBIN_VERSION     2
+#define AXE_FILEBIN_HEADER      "AxeLogBinaryFile"
+
+        FileBin(const char* strFileName="axe.log")
+        {
+            m_pFile = fopen( strFileName, "wb" );
+            if( !m_pFile )
+            {
+//                throw FileNotFoundException
+//                        ( boost::str( boost::format("File not found : %s") % strFile ).c_str() );
+
+//                return boost::shared_array<uint8_t>();
+            }
+            else
+            {
+                fwrite( AXE_FILEBIN_HEADER, 16, 1 , m_pFile );
+
+                uint32_t ver = AXE_FILEBIN_VERSION;
+                fwrite( &ver, sizeof(uint32_t), 1 , m_pFile );
+
+                m_writtenSize = 20;
+            }
+
+        }
+
+        ~FileBin()
+        {
+            if (m_pFile)
+            {
+                fclose(m_pFile);
+            }
+        }
+
+        virtual void Process( const Event& e ) override
+        {
+            if (m_pFile)
+            {
+                uint64_t eventSize =
+                        8   // time
+                        +4  // thread
+                        +1  // level
+                        +1  // type
+                        +4+e.m_category.size()
+                        +4+e.m_message.size()
+                        +4+e.m_data.size()
+                        ;
+                if (m_writtenSize+eventSize>m_writeLimit)
+                {
+                    fclose(m_pFile);
+                    m_pFile = nullptr;
+                }
+                else
+                {
+                    fwrite( &eventSize, sizeof(uint64_t), 1 , m_pFile );
+
+                    fwrite( &e.m_time, sizeof(uint64_t), 1 , m_pFile );
+                    fwrite( &e.m_thread, sizeof(uint32_t), 1 , m_pFile );
+                    fwrite( &e.m_level, sizeof(Level), 1 , m_pFile );
+                    fwrite( &e.m_type, sizeof(EventType), 1 , m_pFile );
+
+                    uint32_t s;
+
+                    s = (uint32_t)e.m_category.size();
+                    fwrite( &s, sizeof(uint32_t), 1 , m_pFile );
+                    if (s>0) fwrite( &e.m_category[0], s, 1 , m_pFile );
+
+                    s = (uint32_t)e.m_message.size();
+                    fwrite( &s, sizeof(uint32_t), 1 , m_pFile );
+                    if (s>0) fwrite( &e.m_message[0], s, 1 , m_pFile );
+
+                    s = (uint32_t)e.m_data.size();
+                    fwrite( &s, sizeof(uint32_t), 1 , m_pFile );
+                    if (s>0) fwrite( &e.m_data[0], s, 1 , m_pFile );
+
+                    m_writtenSize += sizeof(uint64_t)+eventSize;
+                }
+            }
+        }
+
+        static bool LoadEvents(const char* filePath, std::vector<Event>& result)
+        {
+            FILE* file = fopen( filePath, "rb" );
+            if( !file )
+            {
+                return false;
+            }
+
+            char header[16];
+            int read = (int)fread( header, 16, 1 , file );
+            if (read!=1)
+            {
+                fclose(file);
+                return false;
+            }
+
+            if (memcmp(header,AXE_FILEBIN_HEADER,16))
+            {
+                fclose(file);
+                return false;
+            }
+
+            uint32_t version=0;
+            read = (int)fread( &version, sizeof(uint32_t), 1 , file );
+            if (read!=1)
+            {
+                fclose(file);
+                return false;
+            }
+
+            if (version!=AXE_FILEBIN_VERSION)
+            {
+                fclose(file);
+                return false;
+            }
+
+            while (true)
+            {
+                // read one event
+
+                uint64_t eventSize;
+                read = (int)fread( &eventSize, sizeof(uint64_t), 1 , file );
+                if (read!=1) break;
+
+                result.push_back(Event());
+                auto& e = result.back();
+
+                read = (int)fread( &e.m_time, sizeof(uint64_t), 1 , file );
+                if (read!=1) break;
+
+                read = (int)fread( &e.m_thread, sizeof(uint32_t), 1 , file );
+                if (read!=1) break;
+
+                read = (int)fread( &e.m_level, sizeof(Level), 1 , file );
+                if (read!=1) break;
+
+                read = (int)fread( &e.m_type, sizeof(EventType), 1 , file );
+                if (read!=1) break;
+
+                // category
+                int32_t textSize=0;
+                read = (int)fread( &textSize, sizeof(int32_t), 1 , file );
+                if (read!=1) break;
+
+                if (textSize)
+                {
+                    e.m_category.resize(textSize);
+                    read = (int)fread( &e.m_category[0], textSize, 1 , file );
+                    if (read!=1) break;
+                }
+
+                // message
+                read = (int)fread( &textSize, sizeof(int32_t), 1 , file );
+                if (read!=1) break;
+
+                if (textSize)
+                {
+                    e.m_message.resize(textSize);
+                    read = (int)fread( &e.m_message[0], textSize, 1 , file );
+                    if (read!=1) break;
+                }
+
+                // data
+                read = (int)fread( &textSize, sizeof(int32_t), 1 , file );
+                if (read!=1) break;
+
+                if (textSize)
+                {
+                    e.m_data.resize(textSize);
+                    read = (int)fread( &e.m_data[0], textSize, 1 , file );
+                    if (read!=1) break;
+                }
+            }
+
+
+            fclose(file);
+            return true;
         }
     };
 
@@ -92,26 +421,133 @@ namespace axe
     {
     public:
 
-        Kernel()
+        Kernel(const char* strAppName, const char* strVersion, uint64_t options)
         {
+            startWallTime = std::chrono::steady_clock::now();
+
+            // Gather system information
+            std::string machineName = platform::GetHostName();
+            std::string programName = strAppName ? strAppName : "";
+            std::string programVersion = strVersion ? strVersion : "";
+
+            auto t = std::time(nullptr);
+            auto tm = *std::gmtime(&t);
+
+            std::ostringstream oss;
+            oss << std::put_time(&tm, "%Y_%m_%d-%H_%M_%S");
+            std::string nowStr = oss.str();
+
             // Default setup
             m_bins.push_back( std::make_shared<TerminalBin>() );
-        }
 
-        void AddMessage( const char* category, Level level, const std::string& message )
-        {
-            AxeTime now = get_now();
-            ThreadId thisThread = 0;
-
-            for( auto bin: m_bins )
+            char logFileName[256];
+            if (programVersion.size())
             {
-                bin->Process( Event(now,thisThread,level,category,message) );
+                snprintf( logFileName, sizeof(logFileName), "%s-%s-%s-%s.axe_log", programName.c_str(), strVersion, machineName.c_str(), nowStr.c_str() );
             }
+            else
+            {
+                snprintf( logFileName, sizeof(logFileName), "%s-%s-%s.axe_log", programName.c_str(), machineName.c_str(), nowStr.c_str() );
+            }
+            m_bins.push_back( std::make_shared<FileBin>(logFileName) );
+
+            // Initial system logs
+            AddStringValue( "system", Level::Info, "Program", programName );
+            AddStringValue( "system", Level::Info, "Version", programVersion );
+            AddStringValue( "system", Level::Info, "Machine", machineName );
+            AddTimeValue( "system", Level::Info, "StartTime", t );
         }
 
     private:
 
+        inline void AddEvent( const Event& e )
+        {
+            while (m_binsLock.test_and_set(std::memory_order_acquire))  // acquire lock
+                 ; // spin
+
+            for( auto bin: m_bins )
+            {
+                bin->Process( e );
+            }
+
+            m_binsLock.clear(std::memory_order_release);               // release lock
+        }
+
+        void InitEvent( Event& e )
+        {
+            auto now = std::chrono::steady_clock::now();
+            e.m_time = std::chrono::duration_cast<std::chrono::microseconds>(now - startWallTime).count();
+            e.m_thread = std::this_thread::get_id();
+        }
+
+    public:
+
+        void AddMessage( const char* category, EventType type, Level level, const std::string& message )
+        {
+            Event e;
+            InitEvent(e);
+            e.m_type = type;
+            e.m_level = level;
+            e.m_category = category;
+            e.m_message = message;
+            AddEvent(e);
+        }
+
+        void AddStringValue( const char* category, Level level, const std::string& field, const std::string& value )
+        {
+            Event e;
+            InitEvent(e);
+            e.m_type = EventType::StringValue;
+            e.m_level = level;
+            e.m_category = category;
+            e.m_message = field;
+            e.EncodeStringData(value);
+            AddEvent(e);
+        }
+
+        void AddTimeValue( const char* category, Level level, const std::string& field, const std::time_t& value )
+        {
+            Event e;
+            InitEvent(e);
+            e.m_type = EventType::TimeValue;
+            e.m_level = level;
+            e.m_category = category;
+            e.m_message = field;
+            e.EncodeTimeData(value);
+            AddEvent(e);
+        }
+
+        void AddIntValue( const char* category, Level level, const std::string& field, int64_t value )
+        {
+            Event e;
+            InitEvent(e);
+            e.m_type = EventType::IntValue;
+            e.m_level = level;
+            e.m_category = category;
+            e.m_message = field;
+            e.EncodeIntData(value);
+            AddEvent(e);
+        }
+
+        void AddFloatValue( const char* category, Level level, const std::string& field, float value )
+        {
+            Event e;
+            InitEvent(e);
+            e.m_type = EventType::IntValue;
+            e.m_level = level;
+            e.m_category = category;
+            e.m_message = field;
+            e.EncodeFloatData(value);
+            AddEvent(e);
+        }
+
+    private:
+
+        std::atomic_flag m_binsLock = ATOMIC_FLAG_INIT;
+
         std::vector< std::shared_ptr<Bin> > m_bins;
+
+        std::chrono::time_point<std::chrono::steady_clock> startWallTime;
     };
 
 
@@ -124,7 +560,7 @@ namespace axe
 
             char temp[256];
             vsnprintf( temp, sizeof(temp), message, args );
-            s_kernel->AddMessage( category, level, temp );
+            s_kernel->AddMessage( category, EventType::Message, level, temp );
 
             va_end(args);
         }
@@ -140,7 +576,7 @@ namespace axe
 
             char temp[256];
             vsnprintf( temp, sizeof(temp), message.c_str(), args );
-            s_kernel->AddMessage( category, level, temp );
+            s_kernel->AddMessage( category, EventType::Message, level, temp );
 
             va_end(args);
         }
@@ -151,7 +587,7 @@ namespace axe
     {
         if (s_kernel)
         {
-            s_kernel->AddMessage( category, level, message );
+            s_kernel->AddMessage( category, EventType::Message, level, message );
         }
     }
 
@@ -160,7 +596,7 @@ namespace axe
     {
         if (s_kernel)
         {
-            s_kernel->AddMessage( category, level, message );
+            s_kernel->AddMessage( category, EventType::Message, level, message );
         }
     }
 
@@ -169,16 +605,20 @@ namespace axe
     {
         if (s_kernel)
         {
-            std::string delims="\n";
+            std::string delims="\n\r";
             std::string::const_iterator b = s.begin();
             std::string::const_iterator e = s.end();
 
             std::string::const_iterator c = b;
             while (c!=e)
             {
-                if ( b!=c && std::find( delims.begin(), delims.end(), *c) != delims.end() )
+                if ( std::find( delims.begin(), delims.end(), *c) != delims.end() )
                 {
-                    s_kernel->AddMessage( category, level, std::string(b,c) );
+                    // Don't log empty lines
+                    if (c-b>1)
+                    {
+                        s_kernel->AddMessage( category, EventType::Message, level, std::string(b,c) );
+                    }
                     b=c;
                     ++b;
                 }
@@ -188,26 +628,26 @@ namespace axe
             // Add the last element
             if (b!=c)
             {
-                s_kernel->AddMessage( category, level, std::string(b,c) );
+                s_kernel->AddMessage( category, EventType::Message, level, std::string(b,c) );
             }
         }
     }
 
 
-    inline void begin_section( const char* name )
+    inline void begin_section( const char* name, axe::Level level )
     {
         if (s_kernel)
         {
-            s_kernel->AddMessage( "Section", L_Debug, name );
+            s_kernel->AddMessage( "code", axe::EventType::RecursiveSpanBegin, level, name );
         }
     }
 
 
-    inline void end_section()
+    inline void end_section(axe::Level level)
     {
         if (s_kernel)
         {
-            s_kernel->AddMessage( "EndSection", L_Debug, "" );
+            s_kernel->AddMessage( "code", axe::EventType::RecursiveSpanEnd, level, "" );
         }
     }
 
@@ -218,32 +658,77 @@ namespace axe
         inline ScopedSectionHelper( const char* name );
         inline ~ScopedSectionHelper();
     };
+
+
+    class ScopedSectionLevelHelper
+    {
+    public:
+        inline ScopedSectionLevelHelper( const char* name, axe::Level level );
+        inline ~ScopedSectionLevelHelper();
+    private:
+        axe::Level m_level;
+    };
+
+
+    inline void log_string_value(const char* category, Level level, const char* key, const char* value)
+    {
+        if (s_kernel && category && key )
+        {
+            s_kernel->AddStringValue(category,level,key,value?value:"");
+        }
+    }
+
+
+    inline void log_int_value(const char* category, Level level, const char* key, int64_t value)
+    {
+        if (s_kernel && category && key )
+        {
+            s_kernel->AddIntValue(category,level,key,value);
+        }
+    }
+
+
+    inline void log_float_value(const char* category, Level level, const char* key, float value)
+    {
+        if (s_kernel && category && key )
+        {
+            s_kernel->AddFloatValue(category,level,key,value);
+        }
+    }
+
 }
 
-#define AXE_COMPILE_LEVEL_LIMIT   axe::L_All
 
 #if !defined(AXE_ENABLE)
 
 #define AXE_IMPLEMENT()
-#define AXE_INITIALISE(APPNAME,OPTIONS)
+#define AXE_INITIALISE(APPNAME,APPVER,OPTIONS)
 #define AXE_FINALISE()
 #define AXE_LOG(CAT,LEVEL,...)
+#define AXE_LOG_LINES(CAT,LEVEL,TEXT)
 #define AXE_DECLARE_SECTION(TAG,NAME)
 #define AXE_BEGIN_SECTION(TAG)
 #define AXE_END_SECTION()
 #define AXE_SCOPED_SECTION(TAG)
+#define AXE_SCOPED_SECTION_DETAILED(TAG,TEXT)
+#define AXE_BEGIN_SECTION_LEVEL(TAG,LEVEL)
+#define AXE_END_SECTION_LEVEL(LEVEL)
+#define AXE_SCOPED_SECTION_LEVEL(TAG,LEVEL)
+#define AXE_SCOPED_SECTION_DETAILED_LEVEL(TAG,TEXT,LEVEL)
 #define AXE_DECLARE_CATEGORY(TAG,NAME)
-
+#define AXE_STRING_VALUE(CAT,LEVEL,KEY,VALUE)
+#define AXE_INT_VALUE(CAT,LEVEL,KEY,VALUE)
+#define AXE_FLOAT_VALUE(CAT,LEVEL,KEY,VALUE)
 
 #else
 
 #define AXE_IMPLEMENT()                     \
     axe::Kernel* axe::s_kernel = nullptr;
 
-#define AXE_INITIALISE(APPNAME,OPTIONS)     \
+#define AXE_INITIALISE(APPNAME,APPVER,OPTIONS)     \
     {                                       \
         assert(!axe::s_kernel);             \
-        axe::s_kernel = new axe::Kernel();  \
+        axe::s_kernel = new axe::Kernel(APPNAME,APPVER,OPTIONS);  \
     }
 
 #define AXE_FINALISE()                      \
@@ -253,24 +738,7 @@ namespace axe
         axe::s_kernel = nullptr;            \
     }
 
-#define AXE_NUMARGS(...) AXE_NUMARGS_(__VA_ARGS__,AXE_NUMARGS_RSEQ_N())
-#define AXE_NUMARGS_(...) AXE_NUMARGS_N(__VA_ARGS__)
-#define AXE_NUMARGS_N( \
-          _1, _2, _3, _4, _5, _6, _7, _8, _9,_10, \
-         _11,_12,_13,_14,_15,_16,_17,_18,_19,_20, \
-         _21,_22,_23,_24,_25,_26,_27,_28,_29,_30, \
-         _31,_32,_33,_34,_35,_36,_37,_38,_39,_40, \
-         _41,_42,_43,_44,_45,_46,_47,_48,_49,_50, \
-         _51,_52,_53,_54,_55,_56,_57,_58,_59,_60, \
-         _61,_62,_63,N,...) N
-#define AXE_NUMARGS_RSEQ_N() \
-         63,62,61,60,                   \
-         59,58,57,56,55,54,53,52,51,50, \
-         49,48,47,46,45,44,43,42,41,40, \
-         39,38,37,36,35,34,33,32,31,30, \
-         29,28,27,26,25,24,23,22,21,20, \
-         19,18,17,16,15,14,13,12,11,10, \
-         9,8,7,6,5,4,3,2,1,0
+#define AXE_NUMARGS(...) (std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value)
 
 
 #define AXE_LOG(CAT,LEVEL,...)                          \
@@ -293,12 +761,20 @@ namespace axe
     }
 
 #define AXE_DECLARE_SECTION(TAG,NAME)
-#define AXE_BEGIN_SECTION(TAG)                  axe::begin_section(TAG);
-#define AXE_END_SECTION()                       axe::end_section();
-#define AXE_SCOPED_SECTION(TAG)                 axe::ScopedSectionHelper axe_scoped_helper_##TAG(#TAG)
-#define AXE_SCOPED_SECTION_DETAILED(TAG,TEXT)   axe::ScopedSectionHelper axe_scoped_helper_##TAG(TEXT)
+#define AXE_BEGIN_SECTION(TAG)                      axe::begin_section(TAG,axe::Level::Debug)
+#define AXE_END_SECTION()                           axe::end_section(axe::Level::Debug)
+#define AXE_SCOPED_SECTION(TAG)                     axe::ScopedSectionHelper axe_scoped_helper_##TAG(#TAG)
+#define AXE_SCOPED_SECTION_DETAILED(TAG,TEXT)       axe::ScopedSectionHelper axe_scoped_helper_##TAG(TEXT)
+#define AXE_BEGIN_SECTION_LEVEL(TAG,LEVEL)                  axe::begin_section(TAG,LEVEL)
+#define AXE_END_SECTION_LEVEL(LEVEL)                        axe::end_section(LEVEL)
+#define AXE_SCOPED_SECTION_LEVEL(TAG,LEVEL)                 axe::ScopedSectionLevelHelper axe_scoped_helper_##TAG(#TAG,LEVEL)
+#define AXE_SCOPED_SECTION_DETAILED_LEVEL(TAG,TEXT,LEVEL)   axe::ScopedSectionLevelHelper axe_scoped_helper_##TAG(TEXT,LEVEL)
 
 #define AXE_DECLARE_CATEGORY(TAG,NAME)
+
+#define AXE_STRING_VALUE(CAT,LEVEL,KEY,VALUE)       axe::log_string_value(CAT,LEVEL,KEY,VALUE)
+#define AXE_INT_VALUE(CAT,LEVEL,KEY,VALUE)       axe::log_int_value(CAT,LEVEL,KEY,VALUE)
+#define AXE_FLOAT_VALUE(CAT,LEVEL,KEY,VALUE)       axe::log_float_value(CAT,LEVEL,KEY,VALUE)
 
 #endif //AXE_ENABLE
 
@@ -311,4 +787,16 @@ inline axe::ScopedSectionHelper::ScopedSectionHelper( const char* name )
 inline axe::ScopedSectionHelper::~ScopedSectionHelper()
 {
     AXE_END_SECTION();
+}
+
+
+inline axe::ScopedSectionLevelHelper::ScopedSectionLevelHelper( const char* name, axe::Level level )
+{
+    m_level = level;
+    AXE_BEGIN_SECTION_LEVEL( name, m_level );
+}
+
+inline axe::ScopedSectionLevelHelper::~ScopedSectionLevelHelper()
+{
+    AXE_END_SECTION_LEVEL(m_level);
 }

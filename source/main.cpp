@@ -4,47 +4,22 @@
 #include "axe.h"
 #include "craft_core.h"
 #include "target.h"
+#include "platform.h"
 
 #include <cassert>
 
-
-// TODO: Move to platform
-#include <dlfcn.h>
-
+using namespace std;
 
 AXE_IMPLEMENT();
 
 
-
-// TODO: Move to platform
-void LoadAndRun( const char* lib, const char* methodName, const char* workspace, const char** configurations )
-{
-    // Load the dynamic library
-    void *libHandle = dlopen( lib, RTLD_LAZY | RTLD_LOCAL );
-    assert( libHandle );
-
-    dlerror();
-    void *method = dlsym( libHandle, methodName );
-    const char* error = dlerror();
-    if (error)
-    {
-        std::cout << "Loading symbol error:" << error << std::endl;
-    }
-
-    assert( method );
-
-    // Run it
-    typedef void (*CraftMethod)( const char* workspace, const char** configurations );
-    CraftMethod craftMethod = (CraftMethod)method;
-    craftMethod(workspace, configurations);
-}
-
-
 int main( int argc, const char** argv )
 {
-    AXE_INITIALISE("craft",0);
+    AXE_INITIALISE("craft",0,0);
 
+#if defined(AXE_ENABLE)
     craft_core_initialize( axe::s_kernel );
+#endif
 
     // Build the craft framework if necessary
 //    std::string env = "./env";
@@ -98,7 +73,7 @@ int main( int argc, const char** argv )
 
     if ( !FileExists( root+"craftfile" ) )
     {
-        AXE_LOG( "craft", axe::L_Fatal, "Couldn't find craftfile in [%s].", root.c_str() );
+        AXE_LOG( "craft", axe::Level::Fatal, "Couldn't find craftfile in [%s].", root.c_str() );
     }
     else
     {
@@ -121,7 +96,7 @@ int main( int argc, const char** argv )
         auto builtTarget = ctxPlan->get_built_target(target.m_name);
         if (builtTarget->has_errors())
         {
-            AXE_LOG( "craft", axe::L_Fatal, "Failed to build the craftfile." );
+            AXE_LOG( "craft", axe::Level::Fatal, "Failed to build the craftfile." );
         }
         else
         {
@@ -129,7 +104,7 @@ int main( int argc, const char** argv )
 
             if (buildCraftFileResult!=0)
             {
-                AXE_LOG( "craft", axe::L_Fatal, "Failed to build the craftfile." );
+                AXE_LOG( "craft", axe::Level::Fatal, "Failed to build the craftfile." );
             }
             else
             {

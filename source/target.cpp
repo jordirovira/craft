@@ -152,7 +152,7 @@ std::shared_ptr<BuiltTarget> ObjectTarget::build( ContextPlan& ctx )
 
 std::shared_ptr<BuiltTarget> CppTarget::build( ContextPlan& ctx )
 {    
-    AXE_LOG( "Build", axe::L_Debug, "Building CPP target [%s] in configuration [%s]", m_name.c_str(), ctx.get_current_configuration().c_str() );
+    AXE_LOG( "Build", axe::Level::Debug, "Building CPP target [%s] in configuration [%s]", m_name.c_str(), ctx.get_current_configuration().c_str() );
 
     auto res = std::make_shared<BuiltTarget>();
 
@@ -262,15 +262,15 @@ void ProgramTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, const Node
                 uses.push_back( ctx.get_built_target(u));
             }
 
-            Compiler compiler;
-            compiler.set_configuration( ctx.get_current_configuration() );
-            compiler.get_link_program_dependencies( dependencies, objects, uses );
+            auto compiler = ctx.get_current_toolchain()->get_compiler();
+            compiler->set_configuration( ctx.get_current_configuration() );
+            compiler->get_link_program_dependencies( dependencies, objects, uses );
 
             std::shared_ptr<Node> failed;
             outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
             if (outdated)
             {
-                AXE_LOG("deps", axe::L_Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+                AXE_LOG("deps", axe::Level::Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
             }
         }
     }
@@ -288,12 +288,12 @@ void ProgramTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, const Node
             uses.push_back( ctx.get_built_target(u));
         }
 
+        auto compiler = ctx.get_current_toolchain()->get_compiler();
         auto result = std::make_shared<Task>( "link program", builtTarget.m_outputNode,
                                          [=]()
         {
-            Compiler compiler;
-            compiler.set_configuration( configuration );
-            return compiler.link_program( target, objects, uses );
+            compiler->set_configuration( configuration );
+            return compiler->link_program( target, objects, uses );
         }
                     );
 
@@ -326,16 +326,16 @@ void StaticLibraryTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, cons
         }
         else
         {
-            Compiler compiler;
-            compiler.set_configuration( ctx.get_current_configuration() );
+            auto compiler = ctx.get_current_toolchain()->get_compiler();
+            compiler->set_configuration( ctx.get_current_configuration() );
             NodeList dependencies;
-            compiler.get_link_static_library_dependencies( dependencies, target, objects );
+            compiler->get_link_static_library_dependencies( dependencies, target, objects );
 
             std::shared_ptr<Node> failed;
             outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
             if (outdated)
             {
-                AXE_LOG("deps", axe::L_Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+                AXE_LOG("deps", axe::Level::Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
             }
         }
     }
@@ -347,12 +347,12 @@ void StaticLibraryTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, cons
     if (outdated)
     {
         std::string configuration = ctx.get_current_configuration();
+        std::shared_ptr<Compiler> compiler = ctx.get_current_toolchain()->get_compiler();
         auto result = std::make_shared<Task>( "link static library", builtTarget.m_outputNode,
                                          [=]()
         {
-            Compiler compiler;
-            compiler.set_configuration( configuration );
-            return compiler.link_static_library( target, objects );
+            compiler->set_configuration( configuration );
+            return compiler->link_static_library( target, objects );
         }
                     );
 
@@ -395,15 +395,15 @@ void DynamicLibraryTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, con
                 uses.push_back( ctx.get_built_target(u));
             }
 
-            Compiler compiler;
-            compiler.set_configuration( ctx.get_current_configuration() );
-            compiler.get_link_dynamic_library_dependencies( dependencies, target, objects, uses );
+            auto compiler = ctx.get_current_toolchain()->get_compiler();
+            compiler->set_configuration( ctx.get_current_configuration() );
+            compiler->get_link_dynamic_library_dependencies( dependencies, target, objects, uses );
 
             std::shared_ptr<Node> failed;
             outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
             if (outdated)
             {
-                AXE_LOG("deps", axe::L_Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+                AXE_LOG("deps", axe::Level::Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
             }
         }
     }
@@ -421,12 +421,12 @@ void DynamicLibraryTarget::link( ContextPlan& ctx, BuiltTarget& builtTarget, con
             uses.push_back( ctx.get_built_target(u));
         }
 
+        auto compiler = ctx.get_current_toolchain()->get_compiler();
         auto result = std::make_shared<Task>( "link dynamic library", builtTarget.m_outputNode,
-                                         [=]()
+                                         [=,&ctx]()
         {
-            Compiler compiler;
-            compiler.set_configuration( configuration );
-            return compiler.link_dynamic_library( target, objects, uses );
+            compiler->set_configuration( configuration );
+            return compiler->link_dynamic_library( target, objects, uses );
         }
                     );
 
@@ -440,7 +440,7 @@ std::shared_ptr<Task> ObjectTarget::object( ContextPlan& ctx, const std::string&
     FileCreateDirectories( ctx.get_current_path() );
 
     std::string target = ctx.get_current_path()+FileSeparator()+ctx.get_current_configuration()+FileSeparator()+name;
-    target = FileReplaceExtension(target,"o");
+    target = FileReplaceExtension(target,ctx.get_current_toolchain()->get_compiler()->get_default_object_extension());
 
     // Calculate if we need to compile in this variable
     bool outdated = false;
@@ -463,15 +463,15 @@ std::shared_ptr<Task> ObjectTarget::object( ContextPlan& ctx, const std::string&
         {
             NodeList dependencies;
 
-            Compiler compiler;
-            compiler.set_configuration( ctx.get_current_configuration() );
-            compiler.get_compile_dependencies( dependencies, name, target, includePaths );
+            auto compiler = ctx.get_current_toolchain()->get_compiler();
+            compiler->set_configuration( ctx.get_current_configuration() );
+            compiler->get_compile_dependencies( dependencies, name, target, includePaths );
 
             std::shared_ptr<Node> failed;
             outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
             if (outdated)
             {
-                AXE_LOG("deps", axe::L_Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+                AXE_LOG("deps", axe::Level::Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
             }
         }
     }
@@ -485,12 +485,12 @@ std::shared_ptr<Task> ObjectTarget::object( ContextPlan& ctx, const std::string&
     if (outdated)
     {
         std::string configuration = ctx.get_current_configuration();
+        auto compiler = ctx.get_current_toolchain()->get_compiler();
         result = std::make_shared<Task>( "compile", targetNode,
                                          [=]()
         {
-            Compiler compiler;
-            compiler.set_configuration( configuration );
-            return compiler.compile( name, target, includePaths );
+            compiler->set_configuration( configuration );
+            return compiler->compile( name, target, includePaths );
         }
                     );
     }

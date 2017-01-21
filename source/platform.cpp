@@ -6,10 +6,16 @@
 #include <string>
 #include <vector>
 
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <cstdio>
 
+#ifdef _MSC_VER
+#include <direct.h>
+#else
+#include <unistd.h>
+#include <dlfcn.h>
+#endif
 
 std::string Platform::name() const
 {
@@ -81,6 +87,50 @@ bool PlatformLinux64::is_this() const
 }
 
 
+const char* PlatformWindows::os() const
+{
+    return "windows";
+}
+
+
+bool PlatformWindows::is_this() const
+{
+#ifdef _WIN32
+    return true;
+#else
+    return false;
+#endif
+}
+
+
+std::string PlatformWindows::get_dynamic_library_file_name( const std::string& sourceName ) const
+{
+    std::string result = sourceName;
+    result = FileReplaceExtension(result,"dll");
+    return result;
+}
+
+
+std::string PlatformWindows::get_program_file_name( const std::string& sourceName ) const
+{
+    std::string result = sourceName;
+    result = FileReplaceExtension(result,"exe");
+    return result;
+}
+
+
+const char* PlatformWindows64::arch() const
+{
+    return "x64";
+}
+
+
+bool PlatformWindows64::is_this() const
+{
+    return PlatformWindows::is_this() && (sizeof(void *) == 8);
+}
+
+
 const char* PlatformOSX::os() const
 {
     return "osx";
@@ -148,11 +198,14 @@ bool FileExists( const std::string& path )
 std::string FileGetCurrentPath()
 {
     char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) != NULL)
-    {
-        //fprintf(stdout, "Current working dir: %s\n", cwd);
-    }
-    else
+
+#ifdef _MSC_VER
+    const char* res = _getcwd(cwd, sizeof(cwd));
+#else
+    const char* res = getcwd(cwd, sizeof(cwd));
+#endif
+
+    if (!res)
     {
         cwd[0]=0;
     }
@@ -202,8 +255,12 @@ bool FileIsAbsolute( const std::string& path )
 
 void CreateDirectory( const char* directory )
 {
-    AXE_LOG( "Test", axe::L_Verbose, "Creating directory [%s]", directory );
+    AXE_LOG( "Test", axe::Level::Verbose, "Creating directory [%s]", directory );
+#ifdef _MSC_VER
+    int status = _mkdir(directory);
+#else
     int status = mkdir(directory, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+#endif
     assert( status==0 );
 }
 
@@ -249,15 +306,12 @@ FileTime FileGetModificationTime( const std::string& path )
     if (stat (path.c_str(), &file_stat) == 0)
     {
         //result.m_time = file_stat.st_mtimespec; OSX?
-        result.m_time = file_stat.st_mtim;
+        result.m_time = file_stat.st_mtime;
     }
 
     return result;
 }
 
-
-#include <unistd.h>
-#include <cstdio>
 
 //! Warning: don't use this in concurrent scenarios!
 int Run( const std::string& workingPath,
@@ -271,7 +325,271 @@ int Run( const std::string& workingPath,
     std::stringstream logstr;
     logstr << command << " ";
     for( auto s: arguments) { logstr << s << " "; }
-    AXE_LOG( "run", axe::L_Verbose, logstr.str() );
+    AXE_LOG( "run", axe::Level::Verbose, logstr.str() );
+
+#ifdef _MSC_VER
+
+    HANDLE g_hChildStd_OUT_Rd = NULL;
+    HANDLE g_hChildStd_OUT_Wr = NULL;
+    HANDLE g_hChildStd_ERR_Rd = NULL;
+    HANDLE g_hChildStd_ERR_Wr = NULL;
+
+    SECURITY_ATTRIBUTES saAttr;
+
+    // Set the bInheritHandle flag so pipe handles are inherited.
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = NULL;
+
+    // Create a pipe for the child process's STDOUT.
+    if ( !CreatePipe(&g_hChildStd_OUT_Rd, &g_hChildStd_OUT_Wr, &saAttr, 0) )
+        return -1;
+
+    // Ensure the read handle to the pipe for STDOUT is not inherited.
+    if ( !SetHandleInformation(g_hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0) )
+        return -1;
+
+    // Create a pipe for the child process's STDERR.
+    if ( !CreatePipe(&g_hChildStd_ERR_Rd, &g_hChildStd_ERR_Wr, &saAttr, 0) )
+        return -1;
+
+    // Ensure the read handle to the pipe for STDERR is not inherited.
+    if ( !SetHandleInformation(g_hChildStd_ERR_Rd, HANDLE_FLAG_INHERIT, 0) )
+        return -1;
+
+    // Create the child process.
+    PROCESS_INFORMATION piProcInfo;
+    {
+        STARTUPINFO siStartInfo;
+        BOOL bSuccess = FALSE;
+
+        // Set up members of the PROCESS_INFORMATION structure.
+        ZeroMemory( &piProcInfo, sizeof(PROCESS_INFORMATION) );
+
+        // Set up members of the STARTUPINFO structure.
+        // This structure specifies the STDIN and STDOUT handles for redirection.
+        ZeroMemory( &siStartInfo, sizeof(STARTUPINFO) );
+        siStartInfo.cb = sizeof(STARTUPINFO);
+        siStartInfo.hStdError = g_hChildStd_ERR_Wr;
+        siStartInfo.hStdOutput = g_hChildStd_OUT_Wr;
+        siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+        // This is a limitation for CreateProcess
+        assert( logstr.str().size()<32760 );
+
+        // Stupid windows wants to modify this.
+        char tempCmd[32760];
+        strncpy(tempCmd, logstr.str().c_str(), sizeof(tempCmd)-1 );
+
+        // Create the child process.
+        bSuccess = CreateProcess(
+                    nullptr,
+                    tempCmd,                // command line
+                    nullptr,                // process security attributes
+                    nullptr,                // primary thread security attributes
+                    TRUE,                   // handles are inherited
+                    0,                      // creation flags
+                    nullptr,                // use parent's environment
+                    nullptr,//workingPath.c_str(),    // use parent's current directory
+                    &siStartInfo,           // STARTUPINFO pointer
+                    &piProcInfo);           // receives PROCESS_INFORMATION
+
+        // If an error occurs, exit the application.
+        if ( !bSuccess )
+        {
+            return -1;
+        }
+
+        // Close the unused pipe ends
+        CloseHandle(g_hChildStd_OUT_Wr);
+        CloseHandle(g_hChildStd_ERR_Wr);
+    }
+
+
+    HANDLE eventOut = CreateEvent(NULL, TRUE, FALSE, NULL);
+    HANDLE eventErr = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+    // Read from pipe that is the standard output for child process.
+    {
+        DWORD dwBytesRead;
+        char chBuf[4096];
+        OVERLAPPED stOverlappedOut = {0};
+        OVERLAPPED stOverlappedErr = {0};
+        BOOL bSuccess = FALSE;
+
+        stOverlappedOut.hEvent = eventOut;
+        stOverlappedErr.hEvent = eventErr;
+
+        DWORD error;
+        bool endOut = false;
+        bool endErr = false;
+        bool waitingOut = false;
+        bool waitingErr = false;
+        while (!endOut || !endErr || waitingOut || waitingErr)
+        {
+            if (!endOut && !waitingOut)
+            {
+                bSuccess = ReadFile( g_hChildStd_OUT_Rd, chBuf, sizeof(chBuf)-1, &dwBytesRead, &stOverlappedOut);
+                if( bSuccess)
+                {
+                    // All in the first read
+                    if (dwBytesRead)
+                    {
+                        chBuf[dwBytesRead]=0;
+                        out(chBuf);
+                    }
+                    else
+                    {
+                        endOut = true;
+                    }
+                }
+                else
+                {
+                    error = GetLastError();
+                    switch (error)
+                    {
+                    case ERROR_BROKEN_PIPE:
+                        endOut = true;
+                        break;
+
+                    case ERROR_HANDLE_EOF:
+                        endOut = true;
+                        break;
+
+                    case ERROR_IO_PENDING:
+                        waitingOut = true;
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+            }
+
+            if (!endErr && !waitingErr)
+            {
+                bSuccess = ReadFile( g_hChildStd_ERR_Rd, chBuf, sizeof(chBuf)-1, &dwBytesRead, &stOverlappedErr);
+                if( bSuccess)
+                {
+                    // All in the first read
+                    if (dwBytesRead)
+                    {
+                        chBuf[dwBytesRead]=0;
+                        err(chBuf);
+                    }
+                    else
+                    {
+                        endErr = true;
+                    }
+                }
+                else
+                {
+                    error = GetLastError();
+                    switch (error)
+                    {
+                    case ERROR_BROKEN_PIPE:
+                        endErr = true;
+                        break;
+
+                    case ERROR_HANDLE_EOF:
+                        endErr = true;
+                        break;
+
+                    case ERROR_IO_PENDING:
+                        waitingErr = true;
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+            }
+
+
+            if (waitingOut)
+            {
+                waitingOut = false;
+
+                // Check the result of the asynchronous read without waiting (forth parameter FALSE).
+                BOOL bResult = GetOverlappedResult(g_hChildStd_OUT_Rd, &stOverlappedOut, &dwBytesRead, FALSE) ;
+                if (!bResult)
+                {
+                    switch (error = GetLastError())
+                    {
+                    case ERROR_HANDLE_EOF:
+                        endOut = true;
+                        break;
+
+                    case ERROR_IO_INCOMPLETE:
+                        waitingOut = true;
+                        endOut = false;
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+                else
+                {
+                    // Manual-reset event should be reset since it is now signaled.
+                    ResetEvent(stOverlappedOut.hEvent);
+                }
+
+            }
+
+
+            if (waitingErr)
+            {
+                waitingErr = false;
+
+                // Check the result of the asynchronous read without waiting (forth parameter FALSE).
+                BOOL bResult = GetOverlappedResult(g_hChildStd_ERR_Rd, &stOverlappedErr, &dwBytesRead, FALSE) ;
+                if (!bResult)
+                {
+                    switch (error = GetLastError())
+                    {
+                    case ERROR_HANDLE_EOF:
+                        endErr = true;
+                        break;
+
+                    case ERROR_IO_INCOMPLETE:
+                        waitingErr = true;
+                        endErr = false;
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+                else
+                {
+                    // Manual-reset event should be reset since it is now signaled.
+                    ResetEvent(stOverlappedErr.hEvent);
+                }
+
+            }
+        }
+    }
+
+    DWORD exitCode;
+    if (!GetExitCodeProcess(piProcInfo.hProcess, &exitCode))
+        return -1;
+
+    CloseHandle(eventOut);
+    CloseHandle(eventErr);
+
+    // The remaining open handles are cleaned up when this process terminates.
+    // To avoid resource leaks in a larger application, close handles explicitly.
+    CloseHandle(g_hChildStd_OUT_Rd);
+    CloseHandle(g_hChildStd_ERR_Rd);
+
+    // Close handles to the child process and its primary thread.
+    CloseHandle(piProcInfo.hProcess);
+    CloseHandle(piProcInfo.hThread);
+
+    result = exitCode;
+
+#else
 
 #define CHILD_OUT_PIPE      0
 #define CHILD_ERR_PIPE      1
@@ -447,7 +765,60 @@ int Run( const std::string& workingPath,
         close(pipes[CHILD_ERR_PIPE][0]);
     }
 
+#endif
+
     return result;
 }
 
 
+
+
+void LoadAndRun( const char* lib, const char* methodName, const char* workspace, const char** configurations )
+{
+
+#ifdef _MSC_VER
+
+    // Get a handle to the DLL module.
+    HINSTANCE hinstLib = LoadLibrary(TEXT(lib));
+    assert(hinstLib);
+
+    // If the handle is valid, try to get the function address.
+    if (hinstLib)
+    {
+        typedef void (*CraftMethod)( const char* workspace, const char** configurations );
+        CraftMethod craftMethod = (CraftMethod)GetProcAddress(hinstLib, methodName);
+        assert(craftMethod);
+
+        // If the function address is valid, call the function.
+        if (craftMethod)
+        {
+            craftMethod(workspace, configurations);
+        }
+
+        // Free the DLL module.
+        BOOL result = FreeLibrary(hinstLib);
+        assert(result);
+    }
+
+#else
+
+    // Load the dynamic library
+    void *libHandle = dlopen( lib, RTLD_LAZY | RTLD_LOCAL );
+    assert( libHandle );
+
+    dlerror();
+    void *method = dlsym( libHandle, methodName );
+    const char* error = dlerror();
+    if (error)
+    {
+        std::cout << "Loading symbol error:" << error << std::endl;
+    }
+
+    assert( method );
+
+    // Run it
+    typedef void (*CraftMethod)( const char* workspace, const char** configurations );
+    CraftMethod craftMethod = (CraftMethod)method;
+    craftMethod(workspace, configurations);
+#endif
+}

@@ -8,23 +8,6 @@
 #include <memory>
 
 
-//! Dynamic link library import and export
-//! define CRAFTCOREI_BUILD when building the dynamic library
-#if _MSC_VER
-
-    #ifdef CRAFTCOREI_BUILD
-        #define CRAFTCOREI_API __declspec(dllexport)
-    #else
-        #define CRAFTCOREI_API __declspec(dllimport)
-    #endif
-
-#else
-
-    #define CRAFTCOREI_API
-
-#endif
-
-
 class Toolchain;
 class Context;
 class ContextPlan;
@@ -59,13 +42,13 @@ class Target_BaseDefinition : public Target_Base
 public:
 
     // Definition
-    CRAFTCOREI_API TARGET_CLASS& use( const std::string& targets )
+    TARGET_CLASS& use( const std::string& targets )
     {
         m_uses.push_back( targets );
         return static_cast<TARGET_CLASS&>(*this);
     }
 
-    CRAFTCOREI_API TARGET_CLASS& is_default( bool enabled=true )
+    TARGET_CLASS& is_default( bool enabled=true )
     {
         m_is_default = enabled;
         return static_cast<TARGET_CLASS&>(*this);
