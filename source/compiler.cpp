@@ -132,6 +132,20 @@ CompilerGCC::CompilerGCC()
     m_current_configuration=0;
 }
 
+
+bool CompilerGCC::IsValid()
+{
+    // Clumsy test
+    bool result =
+            FileExists("/usr/bin/g++")
+            &&
+            FileExists("/usr/bin/ar")
+            ;
+
+    return result;
+}
+
+
 void CompilerGCC::build_compile_argument_list( std::vector<std::string>& args, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
 {
     args.push_back("-std=c++11");
@@ -532,6 +546,16 @@ CompilerMSVC::CompilerMSVC()
 }
 
 
+bool CompilerMSVC::IsValid()
+{
+    // Clumsy test
+    bool result =
+            FileExists("C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\VC\\BIN\\x86_amd64\\CL.exe")
+            ;
+    return result;
+}
+
+
 void CompilerMSVC::build_compile_argument_list( std::vector<std::string>& args, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths )
 {
     //args.push_back("-std=c++11");
@@ -926,8 +950,18 @@ const char* CompilerMSVC::get_default_object_extension()
 //-------------------------------------------------------------------------------------------------
 Toolchain::Toolchain()
 {
-    //m_compiler = std::make_shared<CompilerGCC>();
-    m_compiler = std::make_shared<CompilerMSVC>();
+    if (CompilerGCC::IsValid())
+    {
+        m_compiler = std::make_shared<CompilerGCC>();
+    }
+    else if (CompilerMSVC::IsValid())
+    {
+        m_compiler = std::make_shared<CompilerMSVC>();
+    }
+    else
+    {
+        AXE_LOG("init",axe::Level::Fatal,"No valid c++ compiler found.");
+    }
 }
 
 

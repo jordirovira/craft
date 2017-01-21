@@ -7,16 +7,6 @@
 
 void craft( Context& ctx )
 {
-    // Define a static library
-    ctx.static_library( "test_lib" )
-            .source( "test_lib_a.cpp test_lib_b.cpp" );
-
-    // Define a program
-    ctx.program( "test_program" )
-            .source( "main.cpp" )
-            .use( "test_lib" )
-            .is_default();
-
     // Set up boost libraries
     packages::boost::craft( ctx,
                             packages::boost::options::static_link
@@ -25,7 +15,6 @@ void craft( Context& ctx )
     // Define a program
     ctx.program( "test_program_boost" )
             .source( "main_boost.cpp" )
-            .use( "test_lib" )
             .use( "boost_system" )
             .is_default();
 

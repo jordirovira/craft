@@ -1,5 +1,4 @@
 
-#include <test_lib.h>
 #include <boost/system/error_code.hpp>
 #include <iostream>
 
@@ -12,8 +11,6 @@ void fail(error_code &ec)
 
 int main()
 {
-    std::cout << get_a() << get_b() << std::endl;
-
     error_code ec;
     fail(ec);
     std::cout << ec.value() << '\n';

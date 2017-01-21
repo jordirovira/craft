@@ -65,6 +65,8 @@ public:
 
     CompilerGCC();
 
+    static bool IsValid();
+
     //! Compiler interface
     int get_compile_dependencies( NodeList& deps, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths ) override;
     int compile( const std::string& source, const std::string& target, const std::vector<std::string>& includePaths ) override;
@@ -92,6 +94,8 @@ class CompilerMSVC : public Compiler
 public:
 
     CompilerMSVC();
+
+    static bool IsValid();
 
     //! Compiler interface
     int get_compile_dependencies( NodeList& deps, const std::string& source, const std::string& target, const std::vector<std::string>& includePaths ) override;

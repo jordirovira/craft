@@ -1,0 +1,19 @@
+// -*- C++ -*-
+// Example craft file to build a simple program
+
+#include <craft.h>
+
+void craft( Context& ctx )
+{
+    // Define a static library
+    ctx.static_library( "test_lib" )
+            .source( "test_lib_a.cpp test_lib_b.cpp" );
+
+    // Define a program
+    ctx.program( "test_program" )
+            .source( "main.cpp" )
+            .use( "test_lib" )
+            .is_default();
+
+}
+

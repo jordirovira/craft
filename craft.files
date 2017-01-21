@@ -1,3 +1,6 @@
+.gitignore
+craft.files
+source/craft_entry.cpp
 wscript
 crosabuild.py
 craftfile
@@ -14,11 +17,13 @@ source/platform.cpp
 source/context.cpp
 source/target.cpp
 packages/boost.h
-examples/craftfile
-examples/main.cpp
-examples/test_lib.h
-examples/test_lib_a.cpp
-examples/test_lib_b.cpp
+examples/simple/craftfile
+examples/simple/main.cpp
+examples/simple/test_lib.h
+examples/simple/test_lib_a.cpp
+examples/simple/test_lib_b.cpp
+examples/boost/craftfile
+examples/boost/main.cpp
 source/download_target.cpp
 source/target.h
 source/unarchive_target.cpp

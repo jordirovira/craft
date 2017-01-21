@@ -1,4 +1,5 @@
 
+#include "craft.h"
 #include "craft_private.h"
 
 #include "axe.h"

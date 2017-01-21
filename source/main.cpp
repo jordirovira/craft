@@ -29,6 +29,12 @@ int main( int argc, const char** argv )
 //            .use( "craft-framework" );
 
     // Parse arguments
+    std::string craftProgramLocation;
+    if(argc>0 && argv && argv[0])
+    {
+        craftProgramLocation = FileGetPath(argv[0]);
+    }
+
     std::string workspace = FileGetCurrentPath();
     std::vector<const char*> configurations;
     {
@@ -82,13 +88,14 @@ int main( int argc, const char** argv )
 
         // \TODO
         ctx->extern_dynamic_library( "craft-core" )
-                .library_path( workspace+"/build/waf/OSX-x86_64-gcc6.1.0/debug/")
+                .library_path( craftProgramLocation )
                 .export_include( workspace+"/source" )  // To find craft.h
                 .export_include( workspace )            // To find packages
                 ;
 
         DynamicLibraryTarget& target = ctx->dynamic_library( "craftfile" );
         target.source( root+"craftfile" )
+                .source(workspace+"/source/craft_entry.cpp")
                 .use( "craft-core" );
 
         std::shared_ptr<ContextPlan> ctxPlan = std::make_shared<ContextPlan>( *ctx );

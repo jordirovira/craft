@@ -20,4 +20,9 @@
 *.out
 *.app
 .waf-*
+
 build
+
+*.creator.user
+*.pyc
+.lock-*
