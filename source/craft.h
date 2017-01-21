@@ -1,7 +1,7 @@
 #pragma once
 
 #include <craft_core.h>
-#include <Target.h>
+#include <target.h>
 
 
 // This should be defined in the craft.cpp file of the project being built.

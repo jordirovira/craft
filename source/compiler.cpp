@@ -61,7 +61,7 @@ void Compiler::build_compile_argument_list( std::vector<std::string>& args, cons
     args.push_back("c++");
 
     // Configuration flags
-    if (m_current_configuration>=0 && m_current_configuration<m_configurations.size())
+    if (m_current_configuration>=0 && m_current_configuration<(int)m_configurations.size())
     {
         const auto& f = m_configurations[m_current_configuration].m_compileFlags;
         args.insert( args.end(), f.begin(), f.end() );

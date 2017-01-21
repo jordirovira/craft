@@ -9,6 +9,7 @@
 #include <sstream>
 #include <vector>
 #include <cstdio>
+#include <cstring>
 #include <sys/stat.h>
 
 #include "unzip.h"

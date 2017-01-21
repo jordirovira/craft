@@ -1,5 +1,5 @@
 
-#include "Target.h"
+#include "target.h"
 
 #include "craft_private.h"
 #include "axe.h"

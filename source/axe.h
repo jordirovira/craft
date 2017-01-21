@@ -15,6 +15,8 @@
 #include <sstream>
 #include <cstdarg>
 #include <cstdio>
+#include <algorithm>
+#include <memory>
 
 //! This macro enables it all. It shouldn't be here, but specified in the command line or project configuration.
 #define AXE_ENABLE    1

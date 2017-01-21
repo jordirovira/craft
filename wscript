@@ -99,7 +99,7 @@ def configure(ctx):
     else:
         #presume 'gcc' or compatible
         common_CFLAGS                   = []
-        common_CXXFLAGS                 = ['-Wall', '-std=c++0x', '-fPIC']
+        common_CXXFLAGS                 = ['-Wall', '-std=c++14', '-fPIC']
         common_LINKFLAGS                = []
         if ctx.env.TARGETPLATFORM!='Windows':
             common_CXXFLAGS         += ['-Werror']
@@ -170,9 +170,9 @@ def build(ctx):
 
     ctx.env.CROSA_ROOT = ctx.path.abspath()
 
-    ctx.read_shlib('git2', paths=['/usr/local/lib'])
-    ctx.read_shlib('curl')
-    ctx.read_shlib('z')
+    #ctx.read_shlib('git2', paths=['/usr/local/lib'])
+    ctx.read_shlib('z', paths=['/usr/lib/x86_64-linux-gnu'])
+    ctx.read_shlib('curl', paths=['/usr/lib/x86_64-linux-gnu'])
 
     ctx.recurse('extern')
 

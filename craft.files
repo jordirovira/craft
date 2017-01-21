@@ -35,3 +35,5 @@ extern/zlib-1.2.8/contrib/minizip/zip.h
 source/custom_target.cpp
 source/context_plan.cpp
 examples/main_boost.cpp
+extern/zlib-1.2.8/contrib/minizip/ioapi.c
+extern/zlib-1.2.8/contrib/minizip/ioapi.h

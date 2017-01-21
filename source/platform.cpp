@@ -8,6 +8,7 @@
 
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 
 std::string Platform::name() const
@@ -247,7 +248,8 @@ FileTime FileGetModificationTime( const std::string& path )
     struct stat file_stat;
     if (stat (path.c_str(), &file_stat) == 0)
     {
-        result.m_time = file_stat.st_mtimespec;
+        //result.m_time = file_stat.st_mtimespec; OSX?
+        result.m_time = file_stat.st_mtim;
     }
 
     return result;

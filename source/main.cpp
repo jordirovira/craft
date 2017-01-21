@@ -7,8 +7,6 @@
 
 #include <cassert>
 
-using namespace std;
-
 
 // TODO: Move to platform
 #include <dlfcn.h>
