@@ -17,10 +17,6 @@ int main( int argc, const char** argv )
 {
     AXE_INITIALISE("craft",0,0);
 
-#if defined(AXE_ENABLE)
-    craft_core_initialize( axe::s_kernel );
-#endif
-
     // Build the craft framework if necessary
 //    std::string env = "./env";
 
@@ -103,7 +99,7 @@ int main( int argc, const char** argv )
 
         DynamicLibraryTarget& target = ctx->dynamic_library( "craftfile" );
         target.source( root+"craftfile" )
-                .source(workspace+"/source/craft_entry.cpp")
+                .source(workspace+"/source/craft.cpp")
                 .use( "craft-core" );
 
         std::shared_ptr<ContextPlan> ctxPlan = std::make_shared<ContextPlan>( *ctx );

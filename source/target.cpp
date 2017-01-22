@@ -210,6 +210,9 @@ std::shared_ptr<BuiltTarget> CppTarget::build( ContextPlan& ctx )
             if (t)
             {
                 objectTasks.push_back( t );
+
+                // Add to the pending tasks list so that it is detected as an outdated dependency
+                ctx.m_tasks.push_back(t);
             }
             objects.push_back( outputNode );
         }
@@ -222,7 +225,8 @@ std::shared_ptr<BuiltTarget> CppTarget::build( ContextPlan& ctx )
         res->m_outputTasks[0]->m_requirements.insert( res->m_outputTasks[0]->m_requirements.end(), objectTasks.begin(), objectTasks.end() );
     }
 
-    res->m_outputTasks.insert( res->m_outputTasks.begin(), objectTasks.begin(), objectTasks.end() );
+    // If i do this, object are compiled twice because they are already in ctx.m_tasks
+    //res->m_outputTasks.insert( res->m_outputTasks.begin(), objectTasks.begin(), objectTasks.end() );
 
     return res;
 }

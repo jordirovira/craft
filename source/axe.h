@@ -90,18 +90,18 @@ namespace axe
             inline std::string GetHostName()
             {
                 char hostname[HOST_NAME_MAX];
-                char username[LOGIN_NAME_MAX];
-                int result;
-                result = gethostname(hostname, HOST_NAME_MAX);
+                int result = gethostname(hostname, HOST_NAME_MAX);
                 if (result)
                 {
                     return "unknown-host";
                 }
-                result = getlogin_r(username, LOGIN_NAME_MAX);
-                if (result)
-                {
-                    return "unknown-host";
-                }
+
+//                char username[LOGIN_NAME_MAX];
+//                result = getlogin_r(username, LOGIN_NAME_MAX);
+//                if (result)
+//                {
+//                    return "unknown-host";
+//                }
 
                 return hostname;
             }

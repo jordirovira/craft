@@ -674,8 +674,8 @@ int Run( const std::string& workingPath,
             FD_SET(pipes[CHILD_ERR_PIPE][0], &set);
 
             // Initialize the timeout data structure.
-            timeout.tv_sec = 10;
-            timeout.tv_usec = 0;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 10000;    // poll every 10ms
 
             // \todo Replace FD_SETSIZE for the max pipe index to optimise
             int ret = select(FD_SETSIZE, &set, NULL, NULL, &timeout);
@@ -684,7 +684,6 @@ int Run( const std::string& workingPath,
             // without any acitivity on the file descriptor
             if (ret == 0)
             {
-                printf("time out!");
                 finished = false;
             }
             else if (ret < 0)
@@ -773,7 +772,7 @@ int Run( const std::string& workingPath,
             if (maxMilliseconds>0)
             {
                 auto now = std::chrono::steady_clock::now();
-                auto deltaTime = std::chrono::duration_cast<std::chrono::microseconds>(now - startTime).count();
+                auto deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
 
                 if (deltaTime>maxMilliseconds)
                 {
@@ -814,7 +813,7 @@ int Run( const std::string& workingPath,
 void LoadAndRun( const char* lib, const char* methodName,
                  const char* workspace, const char** configurations, const char** targets )
 {
-    typedef void (*CraftMethod)( const char* workspace, const char** configurations, const char** targets );
+    typedef void (*CraftMethod)( const char* workspace, const char** configurations, const char** targets, axe::Kernel* log_kernel );
 
 #ifdef _MSC_VER
 
@@ -857,7 +856,7 @@ void LoadAndRun( const char* lib, const char* methodName,
 
     // Run it
     CraftMethod craftMethod = (CraftMethod)method;
-    craftMethod(workspace, configurations, targets);
+    craftMethod(workspace, configurations, targets, axe::s_kernel);
 
     // todo: free library?
 

@@ -179,7 +179,6 @@ def build(ctx):
 
     ctx.shlib(
         source   = '''
-            source/craft.cpp
             source/platform.cpp
             source/context.cpp
             source/context_plan.cpp

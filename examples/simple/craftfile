@@ -21,18 +21,26 @@ void craft( Context& ctx )
     ctx.target("tests")
             .use("test_0")
             .use("test_1")
+            .use("test_2")
             .is_default()
             ;
 
     ctx.exec("test_0")
             .program("/bin/ls")
             .args("-la")
-            .working_folder("/home/jordi")
+            .working_folder("/home")
             ;
 
     ctx.exec("test_1")
             .program("/bin/pwd")
-            .working_folder("/home/jordi")
             ;
+
+    // kill the program after 2 seconds instad of 10
+    ctx.exec("test_2")
+            .program("/bin/sleep")
+            .args("10")
+            .max_time(2000)
+            ;
+
 }
 

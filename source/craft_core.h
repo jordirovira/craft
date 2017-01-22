@@ -26,9 +26,6 @@
 
 #endif
 
-
-extern CRAFTCOREI_API void craft_core_initialize( axe::Kernel* log_kernel=nullptr );
-
 class Toolchain;
 class Context;
 class Node;

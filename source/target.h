@@ -1,7 +1,20 @@
 #pragma once
 
-#include "platform.h"
-#include "axe.h"
+//! Dynamic link library import and export
+//! define CRAFTCOREI_BUILD when building the dynamic library
+#if _MSC_VER
+
+    #ifdef CRAFTCOREI_BUILD
+        #define CRAFTCOREI_API __declspec(dllexport)
+    #else
+        #define CRAFTCOREI_API __declspec(dllimport)
+    #endif
+
+#else
+
+    #define CRAFTCOREI_API
+
+#endif
 
 #include <string>
 #include <vector>
