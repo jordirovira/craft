@@ -57,7 +57,16 @@ public:
         : m_type(type)
         , m_runMethod(run)
     {
-        m_outputs.push_back(output);
+        if (output)
+        {
+            m_outputs.push_back(output);
+        }
+    }
+
+    Task( const std::string& type, std::function<int()> run )
+        : m_type(type)
+        , m_runMethod(run)
+    {
     }
 
     std::string m_type;
@@ -120,6 +129,8 @@ public:
     //CRAFTCOREI_API virtual class DownloadTarget& download( const std::string& name );
 
     //CRAFTCOREI_API virtual class UnarchiveTarget& unarchive( const std::string& name );
+
+    CRAFTCOREI_API virtual class ExecTarget& exec( const std::string& name );
 
     CRAFTCOREI_API virtual class CustomTarget& target( const std::string& name );
 

@@ -7,13 +7,32 @@ void craft( Context& ctx )
 {
     // Define a static library
     ctx.static_library( "test_lib" )
-            .source( "test_lib_a.cpp test_lib_b.cpp" );
+            .source( "test_lib_a.cpp test_lib_b.cpp" )
+            ;
 
     // Define a program
     ctx.program( "test_program" )
             .source( "main.cpp" )
             .use( "test_lib" )
-            .is_default();
+            .is_default()
+            ;
 
+    // Some tests
+    ctx.target("tests")
+            .use("test_0")
+            .use("test_1")
+            .is_default()
+            ;
+
+    ctx.exec("test_0")
+            .program("/bin/ls")
+            .args("-la")
+            .working_folder("/home/jordi")
+            ;
+
+    ctx.exec("test_1")
+            .program("/bin/pwd")
+            .working_folder("/home/jordi")
+            ;
 }
 

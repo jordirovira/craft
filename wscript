@@ -180,11 +180,12 @@ def build(ctx):
     ctx.shlib(
         source   = '''
             source/craft.cpp
+            source/platform.cpp
             source/context.cpp
             source/context_plan.cpp
             source/target.cpp
             source/custom_target.cpp
-            source/platform.cpp
+            source/exec_target.cpp
             source/compiler.cpp
             '''
 #            '''

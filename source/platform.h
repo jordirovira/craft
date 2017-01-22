@@ -238,12 +238,15 @@ extern CRAFTCOREI_API int Run( const std::string& workingPath,
          const std::string& command,
          const std::vector<std::string>& arguments,
          std::function<void(const char*)> out,
-         std::function<void(const char*)> err );
+         std::function<void(const char*)> err,
+         int maxMilliseconds,
+         int* killedFlag );
 
 
 
 //!
 //!
 //!
-extern CRAFTCOREI_API void LoadAndRun( const char* lib, const char* methodName, const char* workspace, const char** configurations );
+extern CRAFTCOREI_API void LoadAndRun( const char* lib, const char* methodName,
+                                       const char* workspace, const char** configurations, const char** targets );
 

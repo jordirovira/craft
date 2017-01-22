@@ -38,6 +38,7 @@ void craft( Context& ctx, unsigned options = options::static_link )
     // This task makes sure boost is built with its own build system for the necessary building conditions
     ctx.target("boost-build")
             .use("boost-source")
+            .configuration_sensitive(true)
             .custom_build( [=]( ContextPlan& ctx, Target_Base& thisTarget ) { return boost_custom_build(ctx,thisTarget,options); } );
 
     // This tasks make sure boost source is available
@@ -120,7 +121,7 @@ std::shared_ptr<BuiltTarget> boost_custom_build( ContextPlan& ctx, Target_Base& 
         auto task = std::make_shared<Task>( "boostbuild", outputNode,
                                          [=]()
         {
-            bool result = 0;
+            int result = 0;
 
             // Run the command
             try

@@ -37,8 +37,9 @@ int main( int argc, const char** argv )
 
     std::string workspace = FileGetCurrentPath();
     std::vector<const char*> configurations;
+    std::vector<const char*> targets;
     {
-        int arg = 0;
+        int arg = 1;
         while (arg<argc)
         {
             // Workspace
@@ -54,6 +55,7 @@ int main( int argc, const char** argv )
                     }
                 }
             }
+            // Configuration
             else if (argv[arg]==std::string("-c") )
             {
                 if (arg+1<argc)
@@ -66,11 +68,17 @@ int main( int argc, const char** argv )
                     }
                 }
             }
+            // Target
+            else
+            {
+               targets.push_back( argv[arg+1] );
+            }
 
             ++arg;
         }
 
         configurations.push_back( nullptr );
+        targets.push_back( nullptr );
     }
 
 
@@ -118,7 +126,7 @@ int main( int argc, const char** argv )
                 // Load and run the dynamic library entry method
                 AXE_SCOPED_SECTION_DETAILED(RunningCraftfile,"Running craftfile");
                 std::string craftLibrary = builtTarget->m_outputNode->m_absolutePath;
-                LoadAndRun( craftLibrary.c_str(), "craft_entry", workspace.c_str(), &configurations[0] );
+                LoadAndRun( craftLibrary.c_str(), "craft_entry", workspace.c_str(), &configurations[0], &targets[0] );
             }
         }
     }

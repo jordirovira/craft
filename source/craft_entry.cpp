@@ -14,14 +14,46 @@
 // with dlopen.
 extern "C"
 {
-    CRAFTCOREI_API void craft_entry( const char* workspacePath, const char** configurations );
-
+    CRAFTCOREI_API void craft_entry( const char* workspacePath, const char** configurations, const char** targets );
 }
 
 
 AXE_IMPLEMENT()
 
-void craft_entry( const char* workspacePath, const char** configurations )
+
+void plan_targets(std::shared_ptr<Context> context, std::shared_ptr<ContextPlan> contextPlan, const char** targets)
+{
+    TargetList plannedTargets;
+    if (!targets || targets[0]==nullptr)
+    {
+        plannedTargets = context->get_default_targets();
+    }
+    else
+    {
+        int t=0;
+        while (targets[t])
+        {
+            auto target = context->get_target(targets[t]);
+            if (!target)
+            {
+                AXE_LOG("craft",axe::Level::Error,"Target [%s] not found.", targets[t]);
+            }
+            else
+            {
+                plannedTargets.push_back(target);
+            }
+            ++t;
+        }
+    }
+
+    for ( size_t t=0; t<plannedTargets.size(); ++t )
+    {
+        contextPlan->get_built_target(plannedTargets[t]->m_name);
+    }
+}
+
+
+void craft_entry( const char* workspacePath, const char** configurations, const char** targets )
 {
     // Create a context for the build process
     std::shared_ptr<Context> context = std::make_shared<Context>();
@@ -41,17 +73,13 @@ void craft_entry( const char* workspacePath, const char** configurations )
             if (!contextPlan->has_configuration( configurations[c] ))
             {
                 // Error
+                AXE_LOG("craft",axe::Level::Error,"Configuration not found.");
                 return;
             }
             else
             {
                 contextPlan->set_current_configuration( configurations[c] );
-
-                TargetList targets = context->get_default_targets();
-                for ( size_t t=0; t<targets.size(); ++t )
-                {
-                    contextPlan->get_built_target(targets[t]->m_name);
-                }
+                plan_targets(context,contextPlan,targets);
             }
             ++c;
         }
@@ -63,12 +91,7 @@ void craft_entry( const char* workspacePath, const char** configurations )
         for (std::size_t i=0; i<context->get_default_configurations().size(); ++i)
         {
             contextPlan->set_current_configuration( context->get_default_configurations()[i] );
-
-            TargetList targets = context->get_default_targets();
-            for ( size_t t=0; t<targets.size(); ++t )
-            {
-                contextPlan->get_built_target(targets[t]->m_name);
-            }
+            plan_targets(context,contextPlan,targets);
         }
     }
 

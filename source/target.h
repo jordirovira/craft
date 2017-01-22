@@ -97,7 +97,7 @@ public:
     //! It may be empty if the output node was up to date.
     std::vector<std::shared_ptr<class Task>> m_outputTasks;
 
-    //! Node produced by this target build process
+    //! Node produced by this target build process. If null, the target will always be run.
     std::shared_ptr<Node> m_outputNode;
 
     //!
@@ -221,5 +221,30 @@ public:
 private:
     std::function<std::shared_ptr<class BuiltTarget>(ContextPlan&,Target_Base&)> m_buildMethod;
     bool m_configurationSensitive = true;
+};
+
+
+//! This target runs a program and collects the output
+class ExecTarget : public Target_BaseDefinition<ExecTarget>
+{
+public:
+    ExecTarget& program(const std::string& path);
+    ExecTarget& working_folder(const std::string& path);
+    ExecTarget& args(const std::string& args);
+    ExecTarget& max_time(int milliseconds);
+    ExecTarget& log_output(bool);
+    ExecTarget& log_error(bool);
+
+    // Target interface
+    std::shared_ptr<class BuiltTarget> build( ContextPlan& ctx ) override;
+    bool is_configuration_sensitive() const override {return false;}
+
+private:
+    std::string m_program;
+    std::string m_workingFolder;
+    std::vector<std::string> m_arguments;
+    int m_maxTimeMilliseconds=0;
+    bool m_logOutput = true;
+    bool m_logError = true;
 };
 

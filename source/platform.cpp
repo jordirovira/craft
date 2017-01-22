@@ -318,7 +318,8 @@ int Run( const std::string& workingPath,
          const std::string& command,
          const std::vector<std::string>& arguments,
          std::function<void(const char*)> out,
-         std::function<void(const char*)> err )
+         std::function<void(const char*)> err,
+         int maxMilliseconds, int* killedFlag )
 {
     int result = 0;
 
@@ -326,6 +327,12 @@ int Run( const std::string& workingPath,
     logstr << command << " ";
     for( auto s: arguments) { logstr << s << " "; }
     AXE_LOG( "run", axe::Level::Verbose, logstr.str() );
+
+    if (killedFlag)
+    {
+        *killedFlag = 0;
+    }
+
 
 #ifdef _MSC_VER
 
@@ -653,6 +660,8 @@ int Run( const std::string& workingPath,
         close(pipes[CHILD_ERR_PIPE][1]);
 
         bool finished = false;
+        bool killing = false;
+        auto startTime = std::chrono::steady_clock::now();
 
         while (!finished)
         {
@@ -665,7 +674,7 @@ int Run( const std::string& workingPath,
             FD_SET(pipes[CHILD_ERR_PIPE][0], &set);
 
             // Initialize the timeout data structure.
-            timeout.tv_sec = 60;
+            timeout.tv_sec = 10;
             timeout.tv_usec = 0;
 
             // \todo Replace FD_SETSIZE for the max pipe index to optimise
@@ -759,6 +768,35 @@ int Run( const std::string& workingPath,
                     result = -1;
                 }
             }
+
+            // should we kill because it takes too long?
+            if (maxMilliseconds>0)
+            {
+                auto now = std::chrono::steady_clock::now();
+                auto deltaTime = std::chrono::duration_cast<std::chrono::microseconds>(now - startTime).count();
+
+                if (deltaTime>maxMilliseconds)
+                {
+                    if (!killing)
+                    {
+                        kill(childPid, SIGTERM);
+                        killing = true;
+                        if (killedFlag)
+                        {
+                            *killedFlag = 1;
+                        }
+                    }
+                    else
+                    {
+                        // Two seconds to die gracefully
+                        if (deltaTime>maxMilliseconds+2000)
+                        {
+                            kill(childPid, SIGKILL);
+                            finished = true;
+                        }
+                    }
+                }
+            }
         }
 
         close(pipes[CHILD_OUT_PIPE][0]);
@@ -773,8 +811,10 @@ int Run( const std::string& workingPath,
 
 
 
-void LoadAndRun( const char* lib, const char* methodName, const char* workspace, const char** configurations )
+void LoadAndRun( const char* lib, const char* methodName,
+                 const char* workspace, const char** configurations, const char** targets )
 {
+    typedef void (*CraftMethod)( const char* workspace, const char** configurations, const char** targets );
 
 #ifdef _MSC_VER
 
@@ -785,14 +825,13 @@ void LoadAndRun( const char* lib, const char* methodName, const char* workspace,
     // If the handle is valid, try to get the function address.
     if (hinstLib)
     {
-        typedef void (*CraftMethod)( const char* workspace, const char** configurations );
         CraftMethod craftMethod = (CraftMethod)GetProcAddress(hinstLib, methodName);
         assert(craftMethod);
 
         // If the function address is valid, call the function.
         if (craftMethod)
         {
-            craftMethod(workspace, configurations);
+            craftMethod(workspace, configurations, targets);
         }
 
         // Free the DLL module.
@@ -817,8 +856,10 @@ void LoadAndRun( const char* lib, const char* methodName, const char* workspace,
     assert( method );
 
     // Run it
-    typedef void (*CraftMethod)( const char* workspace, const char** configurations );
     CraftMethod craftMethod = (CraftMethod)method;
-    craftMethod(workspace, configurations);
+    craftMethod(workspace, configurations, targets);
+
+    // todo: free library?
+
 #endif
 }

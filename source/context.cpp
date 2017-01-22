@@ -227,6 +227,17 @@ CustomTarget& Context::target( const std::string& name )
 }
 
 
+ExecTarget& Context::exec( const std::string& name )
+{
+    std::shared_ptr<ExecTarget> target = std::make_shared<ExecTarget>();
+    target->m_name = name;
+
+    m_targets.push_back( target );
+
+    return *target;
+}
+
+
 std::shared_ptr<Target_Base> Context::get_target( const std::string& name )
 {
     std::shared_ptr<Target_Base> result;

@@ -194,7 +194,8 @@ int CompilerGCC::get_compile_dependencies( NodeList& deps, const std::string& so
         std::string out, err;
         result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (err.size())
         {
@@ -275,7 +276,8 @@ int CompilerGCC::compile( const std::string& source, const std::string& target, 
         std::string out, err;
         result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (out.size())
         {
@@ -374,7 +376,8 @@ int CompilerGCC::link_program( const std::string& target,
         std::string out, err;
         result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (out.size())
         {
@@ -420,7 +423,8 @@ int CompilerGCC::link_static_library( const std::string& target, const NodeList&
         std::string out, err;
         result = Run( "", m_arexec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (out.size())
         {
@@ -500,7 +504,8 @@ int CompilerGCC::link_dynamic_library( const std::string& target,
         std::string out, err;
         result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (out.size())
         {
@@ -609,7 +614,8 @@ int CompilerMSVC::get_compile_dependencies( NodeList& deps, const std::string& s
         std::string out, err;
         result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (err.size())
         {
@@ -690,7 +696,8 @@ int CompilerMSVC::compile( const std::string& source, const std::string& target,
         std::string out, err;
         result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (out.size())
         {
@@ -789,7 +796,8 @@ int CompilerMSVC::link_program( const std::string& target,
         std::string out, err;
         result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (out.size())
         {
@@ -835,7 +843,8 @@ int CompilerMSVC::link_static_library( const std::string& target, const NodeList
         std::string out, err;
         result = Run( "", m_arexec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (out.size())
         {
@@ -915,7 +924,8 @@ int CompilerMSVC::link_dynamic_library( const std::string& target,
         std::string out, err;
         result = Run( "", m_exec, args,
              [&out](const char* text){ out += text; },
-             [&err](const char* text){ err += text; } );
+             [&err](const char* text){ err += text; },
+             0, nullptr );
 
         if (out.size())
         {

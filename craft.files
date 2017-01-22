@@ -1,6 +1,7 @@
 .gitignore
 craft.files
 source/craft_entry.cpp
+source/exec_target.cpp
 wscript
 crosabuild.py
 craftfile
