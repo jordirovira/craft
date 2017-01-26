@@ -12,7 +12,7 @@
 
 //! Dynamic link library import and export
 //! define CRAFTCOREI_BUILD when building the dynamic library
-#if _MSC_VER
+#if defined _WIN32 || defined __CYGWIN__
 
     #ifdef CRAFTCOREI_BUILD
         #define CRAFTCOREI_API __declspec(dllexport)
@@ -80,7 +80,7 @@ public:
 
     CRAFTCOREI_API Context( bool buildFolderHasHost=true, bool buildFolderHasTarget=true );
 
-    CRAFTCOREI_API virtual ~Context() {}
+    CRAFTCOREI_API virtual ~Context();
 
     // Build configuration
 
@@ -184,24 +184,9 @@ class ContextPlan
 {
 public:
 
-    ContextPlan( const Context& craftContext )
-    {
-        m_buildRoot = craftContext.m_buildRoot;
-        m_buildFolderHasHost = craftContext.m_buildFolderHasHost;
-        m_buildFolderHasTarget = craftContext.m_buildFolderHasTarget;
-        m_buildFolder = craftContext.m_buildFolder;
-        m_currentPath = craftContext.m_currentPath;
-        m_nodes = craftContext.m_nodes;
-        m_targets = craftContext.m_targets;
-        m_platforms = craftContext.m_platforms;
-        m_target_platform = craftContext.m_target_platform;
-        m_host_platform = craftContext.m_host_platform;
-        m_toolchains = craftContext.m_toolchains;
-        m_toolchain = craftContext.m_toolchain;
-        m_configurations = craftContext.m_configurations;
-    }
+    CRAFTCOREI_API ContextPlan( const Context& craftContext );
 
-    virtual ~ContextPlan() {}
+    CRAFTCOREI_API virtual ~ContextPlan();
 
     // State query
     CRAFTCOREI_API virtual std::shared_ptr<Platform> get_host_platform();

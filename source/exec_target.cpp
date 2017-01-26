@@ -45,6 +45,18 @@ ExecTarget& ExecTarget::log_error(bool log)
     return *this;
 }
 
+ExecTarget& ExecTarget::log_name(const char* logName)
+{
+    m_logName = logName;
+    return *this;
+}
+
+ExecTarget& ExecTarget::ignore_fail(bool f)
+{
+    m_ignoreFail = f;
+    return *this;
+}
+
 std::shared_ptr<class BuiltTarget> ExecTarget::build( ContextPlan& ctx )
 {
     auto res = std::make_shared<BuiltTarget>();
@@ -67,6 +79,8 @@ std::shared_ptr<class BuiltTarget> ExecTarget::build( ContextPlan& ctx )
                                         [=]()
     {
         int result = 0;
+
+        AXE_SCOPED_SECTION_DETAILED(craft, m_logName.c_str());
 
         try
         {
@@ -93,12 +107,28 @@ std::shared_ptr<class BuiltTarget> ExecTarget::build( ContextPlan& ctx )
             if (m_maxTimeMilliseconds>0)
             {
                 AXE_INT_VALUE("exec",axe::Level::Info, "killed", wasKilled);
+
+                if (wasKilled)
+                {
+                    AXE_LOG( "exec", axe::Level::Error, "Killed because time exceeded: %d", m_maxTimeMilliseconds );
+                }
             }
         }
         catch(...)
         {
-            AXE_LOG( "exec", axe::Level::Error, "Execution failed!" );
             result = -1;
+        }
+
+        AXE_INT_VALUE("exec",axe::Level::Info, "result", result);
+
+        if (result!=0)
+        {
+            AXE_LOG( "exec", axe::Level::Error, "Execution failed: %d", result );
+        }
+
+        if (m_ignoreFail)
+        {
+            result = 0;
         }
 
         return result;

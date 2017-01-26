@@ -36,7 +36,7 @@
 
 
 // Platform-specific requirements
-#ifdef _MSC_VER
+#ifdef _WIN32
     #include <Windows.h>
 #else
     #include <unistd.h>
@@ -52,7 +52,7 @@ namespace axe
         std::string GetHostName();
 
         // Platform-specific helpers implementation
-        #ifdef _MSC_VER
+        #ifdef _WIN32
 
             inline std::string GetHostName()
             {

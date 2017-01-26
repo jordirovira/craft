@@ -7,15 +7,27 @@
 #include <vector>
 
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <cstdio>
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #include <direct.h>
 #else
 #include <unistd.h>
 #include <dlfcn.h>
+#include <sys/wait.h>
 #endif
+
+
+// axe for the craftcore library
+AXE_IMPLEMENT()
+
+void craft_core_log_init( axe::Kernel* log_kernel )
+{
+#ifdef AXE_ENABLE
+    axe::s_kernel = log_kernel;
+#endif
+}
+
 
 std::string Platform::name() const
 {
@@ -256,7 +268,7 @@ bool FileIsAbsolute( const std::string& path )
 void CreateDirectory( const char* directory )
 {
     AXE_LOG( "Test", axe::Level::Verbose, "Creating directory [%s]", directory );
-#ifdef _MSC_VER
+#ifdef _WIN32
     int status = _mkdir(directory);
 #else
     int status = mkdir(directory, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -334,7 +346,7 @@ int Run( const std::string& workingPath,
     }
 
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 
     HANDLE g_hChildStd_OUT_Rd = NULL;
     HANDLE g_hChildStd_OUT_Wr = NULL;
@@ -417,33 +429,42 @@ int Run( const std::string& workingPath,
     HANDLE eventErr = CreateEvent(NULL, TRUE, FALSE, NULL);
 
     // Read from pipe that is the standard output for child process.
+    DWORD dwBytesRead;
+    char chOutBuf[4096];
+    char chErrBuf[4096];
+    OVERLAPPED stOverlappedOut = {0};
+    OVERLAPPED stOverlappedErr = {0};
+    BOOL bSuccess = FALSE;
+
+    stOverlappedOut.hEvent = eventOut;
+    stOverlappedErr.hEvent = eventErr;
+
+    auto startTime = std::chrono::steady_clock::now();
+
+    DWORD error;
+    bool endOut = false;
+    bool endErr = false;
+    while (!endOut || !endErr )
     {
-        DWORD dwBytesRead;
-        char chBuf[4096];
-        OVERLAPPED stOverlappedOut = {0};
-        OVERLAPPED stOverlappedErr = {0};
-        BOOL bSuccess = FALSE;
-
-        stOverlappedOut.hEvent = eventOut;
-        stOverlappedErr.hEvent = eventErr;
-
-        DWORD error;
-        bool endOut = false;
-        bool endErr = false;
-        bool waitingOut = false;
-        bool waitingErr = false;
-        while (!endOut || !endErr || waitingOut || waitingErr)
+        DWORD availableBytes=0;
+        if (!endOut)
         {
-            if (!endOut && !waitingOut)
+            bSuccess = PeekNamedPipe(g_hChildStd_OUT_Rd,nullptr,0,nullptr,&availableBytes, nullptr );
+            if (!bSuccess)
             {
-                bSuccess = ReadFile( g_hChildStd_OUT_Rd, chBuf, sizeof(chBuf)-1, &dwBytesRead, &stOverlappedOut);
-                if( bSuccess)
+                endOut = true;
+            }
+            else if (availableBytes)
+            {
+                availableBytes = availableBytes<sizeof(chOutBuf)-1 ? availableBytes : sizeof(chOutBuf)-1;
+                bSuccess = ReadFile( g_hChildStd_OUT_Rd, chOutBuf, availableBytes, &dwBytesRead, &stOverlappedOut);
+                if(bSuccess)
                 {
                     // All in the first read
                     if (dwBytesRead)
                     {
-                        chBuf[dwBytesRead]=0;
-                        out(chBuf);
+                        chOutBuf[dwBytesRead]=0;
+                        out(chOutBuf);
                     }
                     else
                     {
@@ -464,129 +485,94 @@ int Run( const std::string& workingPath,
                         break;
 
                     case ERROR_IO_PENDING:
-                        waitingOut = true;
                         break;
 
                     default:
                         break;
                     }
                 }
-            }
-
-            if (!endErr && !waitingErr)
-            {
-                bSuccess = ReadFile( g_hChildStd_ERR_Rd, chBuf, sizeof(chBuf)-1, &dwBytesRead, &stOverlappedErr);
-                if( bSuccess)
-                {
-                    // All in the first read
-                    if (dwBytesRead)
-                    {
-                        chBuf[dwBytesRead]=0;
-                        err(chBuf);
-                    }
-                    else
-                    {
-                        endErr = true;
-                    }
-                }
-                else
-                {
-                    error = GetLastError();
-                    switch (error)
-                    {
-                    case ERROR_BROKEN_PIPE:
-                        endErr = true;
-                        break;
-
-                    case ERROR_HANDLE_EOF:
-                        endErr = true;
-                        break;
-
-                    case ERROR_IO_PENDING:
-                        waitingErr = true;
-                        break;
-
-                    default:
-                        break;
-                    }
-                }
-            }
-
-
-            if (waitingOut)
-            {
-                waitingOut = false;
-
-                // Check the result of the asynchronous read without waiting (forth parameter FALSE).
-                BOOL bResult = GetOverlappedResult(g_hChildStd_OUT_Rd, &stOverlappedOut, &dwBytesRead, FALSE) ;
-                if (!bResult)
-                {
-                    switch (error = GetLastError())
-                    {
-                    case ERROR_HANDLE_EOF:
-                        endOut = true;
-                        break;
-
-                    case ERROR_IO_INCOMPLETE:
-                        waitingOut = true;
-                        endOut = false;
-                        break;
-
-                    default:
-                        break;
-                    }
-                }
-                else
-                {
-                    // Manual-reset event should be reset since it is now signaled.
-                    ResetEvent(stOverlappedOut.hEvent);
-                }
-
-            }
-
-
-            if (waitingErr)
-            {
-                waitingErr = false;
-
-                // Check the result of the asynchronous read without waiting (forth parameter FALSE).
-                BOOL bResult = GetOverlappedResult(g_hChildStd_ERR_Rd, &stOverlappedErr, &dwBytesRead, FALSE) ;
-                if (!bResult)
-                {
-                    switch (error = GetLastError())
-                    {
-                    case ERROR_HANDLE_EOF:
-                        endErr = true;
-                        break;
-
-                    case ERROR_IO_INCOMPLETE:
-                        waitingErr = true;
-                        endErr = false;
-                        break;
-
-                    default:
-                        break;
-                    }
-                }
-                else
-                {
-                    // Manual-reset event should be reset since it is now signaled.
-                    ResetEvent(stOverlappedErr.hEvent);
-                }
-
             }
         }
+
+        if (!endErr)
+        {
+            bSuccess = PeekNamedPipe(g_hChildStd_ERR_Rd,nullptr,0,nullptr,&availableBytes, nullptr );
+            if (!bSuccess)
+            {
+                endErr = true;
+            }
+            else if (availableBytes)
+            {
+                availableBytes = availableBytes<sizeof(chErrBuf)-1 ? availableBytes : sizeof(chErrBuf)-1;
+                bSuccess = ReadFile( g_hChildStd_ERR_Rd, chErrBuf, sizeof(chErrBuf)-1, &dwBytesRead, &stOverlappedErr);
+                if( bSuccess)
+                {
+                    // All in the first read
+                    if (dwBytesRead)
+                    {
+                        chErrBuf[dwBytesRead]=0;
+                        err(chErrBuf);
+                    }
+                    else
+                    {
+                        endErr = true;
+                    }
+                }
+                else
+                {
+                    error = GetLastError();
+                    switch (error)
+                    {
+                    case ERROR_BROKEN_PIPE:
+                        endErr = true;
+                        break;
+
+                    case ERROR_HANDLE_EOF:
+                        endErr = true;
+                        break;
+
+                    case ERROR_IO_PENDING:
+                        break;
+
+                    default:
+                        break;
+                    }
+                }
+            }
+        }
+
+        DWORD procResult = WaitForSingleObject(piProcInfo.hProcess,0);
+        if (procResult!=WAIT_TIMEOUT)
+        {
+            endOut = endErr = true;
+        }
+
+        // should we kill because it takes too long?
+        if (maxMilliseconds>0)
+        {
+            auto now = std::chrono::steady_clock::now();
+            auto deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
+
+            if (deltaTime>maxMilliseconds)
+            {
+                TerminateProcess(piProcInfo.hProcess, 255);
+                endOut = endErr = true;
+                if (killedFlag)
+                {
+                    *killedFlag = 1;
+                }
+            }
+        }
+
     }
 
-    DWORD exitCode;
+    DWORD exitCode=0;
     if (!GetExitCodeProcess(piProcInfo.hProcess, &exitCode))
         return -1;
 
     CloseHandle(eventOut);
     CloseHandle(eventErr);
 
-    // The remaining open handles are cleaned up when this process terminates.
-    // To avoid resource leaks in a larger application, close handles explicitly.
     CloseHandle(g_hChildStd_OUT_Rd);
     CloseHandle(g_hChildStd_ERR_Rd);
 
@@ -815,7 +801,7 @@ void LoadAndRun( const char* lib, const char* methodName,
 {
     typedef void (*CraftMethod)( const char* workspace, const char** configurations, const char** targets, axe::Kernel* log_kernel );
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 
     // Get a handle to the DLL module.
     HINSTANCE hinstLib = LoadLibrary(TEXT(lib));
@@ -830,7 +816,7 @@ void LoadAndRun( const char* lib, const char* methodName,
         // If the function address is valid, call the function.
         if (craftMethod)
         {
-            craftMethod(workspace, configurations, targets);
+            craftMethod(workspace, configurations, targets, axe::s_kernel);
         }
 
         // Free the DLL module.

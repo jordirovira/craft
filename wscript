@@ -99,11 +99,11 @@ def configure(ctx):
     else:
         #presume 'gcc' or compatible
         common_CFLAGS                   = []
-        common_CXXFLAGS                 = ['-Wall', '-std=c++14', '-fPIC']
+        common_CXXFLAGS                 = ['-Wall', '-std=c++14']
         common_LINKFLAGS                = ['-Wl,-rpath,$ORIGIN']
 
         if ctx.env.TARGETPLATFORM!='Windows':
-            common_CXXFLAGS         += ['-Werror']
+            common_CXXFLAGS         += ['-Werror', '-fPIC']
 
         if ctx.env.TARGETARCH=='x86_32':
             common_CFLAGS += ['-m32']
@@ -115,8 +115,10 @@ def configure(ctx):
             common_LINKFLAGS += ['-m64']
 
         if ctx.env.TARGETPLATFORM=='Windows':
-            common_CXXFLAGS         += ['-mwindows']
-            common_LINKFLAGS        += ['-Wl,-subsystem,windows' ]
+#            common_CXXFLAGS         += ['-mwindows']
+#            common_LINKFLAGS        += ['-Wl,-subsystem,windows' ]
+            common_CXXFLAGS         += ['-mconsole']
+#            common_LINKFLAGS        += ['-Wl,-subsystem,windows' ]
 
     # Variants
     default_env = ctx.env.derive()
@@ -172,8 +174,8 @@ def build(ctx):
     ctx.env.CROSA_ROOT = ctx.path.abspath()
 
     #ctx.read_shlib('git2', paths=['/usr/local/lib'])
-    ctx.read_shlib('z', paths=['/usr/lib/x86_64-linux-gnu'])
-    ctx.read_shlib('curl', paths=['/usr/lib/x86_64-linux-gnu'])
+    #ctx.read_shlib('z', paths=['/usr/lib/x86_64-linux-gnu'])
+    #ctx.read_shlib('curl', paths=['/usr/lib/x86_64-linux-gnu'])
 
     ctx.recurse('extern')
 

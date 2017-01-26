@@ -44,6 +44,12 @@ Context::Context( bool buildFolderHasHost,
 }
 
 
+Context::~Context()
+{
+
+}
+
+
 void Context::update_target_folder()
 {
     m_currentPath = m_buildRoot+FileSeparator()+m_buildFolder;

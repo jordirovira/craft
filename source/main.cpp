@@ -10,12 +10,16 @@
 
 using namespace std;
 
+// axe for the main program
 AXE_IMPLEMENT();
 
 
 int main( int argc, const char** argv )
 {
     AXE_INITIALISE("craft",0,0);
+
+    // Share the logger with the craft-core dynamic library
+    craft_core_log_init(axe::s_kernel);
 
     // Build the craft framework if necessary
 //    std::string env = "./env";

@@ -1,4 +1,4 @@
-// This file is compiled in the craftfile dynamyc library, but not in the craft program
+// This file is compiled in the craftfile dynamic library, but not in the craft program or craft-core library.
 
 #include "craft.h"
 #include "craft_private.h"
@@ -11,6 +11,7 @@
 #include <vector>
 
 
+// axe for the craftfile library
 AXE_IMPLEMENT()
 
 // Make sure the method will be defined with the suitable C linking style, so that we can find it

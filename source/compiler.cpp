@@ -123,8 +123,29 @@ int Compiler::get_link_dynamic_library_dependencies( NodeList& deps,
 //-------------------------------------------------------------------------------------------------
 CompilerGCC::CompilerGCC()
 {
-    m_exec="/usr/bin/g++";
-    m_arexec="/usr/bin/ar";
+    bool result = false;
+
+    if ( FileExists("/usr/bin/g++")
+            &&
+            FileExists("/usr/bin/ar")
+         )
+    {
+        m_exec = "/usr/bin/g++";
+        m_arexec="/usr/bin/ar";
+        result = true;
+    }
+
+    else if ( FileExists("C:/TDM-GCC-64/bin/g++.exe")
+              &&
+              FileExists("C:/TDM-GCC-64/bin/ar.exe")
+           )
+    {
+        m_exec = "C:/TDM-GCC-64/bin/g++.exe";
+        m_arexec="C:/TDM-GCC-64/bin/ar.exe";
+        result = true;
+    }
+
+    assert(result);
 
     add_configuration("debug",{"-O0","-g"},{});
     add_configuration("profile",{"-O3","-g"},{});
@@ -136,11 +157,23 @@ CompilerGCC::CompilerGCC()
 bool CompilerGCC::IsValid()
 {
     // Clumsy test
-    bool result =
-            FileExists("/usr/bin/g++")
+    bool result = false;
+
+    if ( FileExists("/usr/bin/g++")
             &&
             FileExists("/usr/bin/ar")
-            ;
+         )
+    {
+        result = true;
+    }
+
+    else if ( FileExists("C:/TDM-GCC-64/bin/g++.exe")
+              &&
+              FileExists("C:/TDM-GCC-64/bin/ar.exe")
+           )
+    {
+        result = true;
+    }
 
     return result;
 }
@@ -151,7 +184,11 @@ void CompilerGCC::build_compile_argument_list( std::vector<std::string>& args, c
     args.push_back("-std=c++11");
 
     // TODO: Not always, only for dynlibs
+    // not required in gcc for windows
+    // todo: do it based on target platform, not compiler preprocessor!
+#ifndef _WIN32
     args.push_back("-fPIC");
+#endif
 
     args.push_back("-c");
 
@@ -211,8 +248,6 @@ int CompilerGCC::get_compile_dependencies( NodeList& deps, const std::string& so
 
         while( rule_begin!=rule_end )
         {
-            //AXE_LOG( "rule", axe::L_Verbose, rule_begin->str() );
-
             std::string rule = rule_begin->str();
 
             std::regex dep_regex(R"([\s\n\\]+|([.\w]+:))");

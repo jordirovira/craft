@@ -1,5 +1,7 @@
 #pragma once
 
+#include <axe.h>
+
 #include <string>
 #include <vector>
 #include <functional>
@@ -7,7 +9,7 @@
 
 //! Dynamic link library import and export
 //! define CRAFTCOREI_BUILD when building the dynamic library
-#if _MSC_VER
+#if defined _WIN32 || defined __CYGWIN__
 
     #ifdef CRAFTCOREI_BUILD
         #define CRAFTCOREI_API __declspec(dllexport)
@@ -20,6 +22,32 @@
     #define CRAFTCOREI_API
 
 #endif
+//#if defined _WIN32 || defined __CYGWIN__
+//  #ifdef CRAFTCOREI_BUILD
+//    #ifdef __GNUC__
+//      #define CRAFTCOREI_API __attribute__ ((dllexport))
+//    #else
+//      #define CRAFTCOREI_API __declspec(dllexport) // Note: actually gcc seems to also supports this syntax.
+//    #endif
+//  #else
+//    #ifdef __GNUC__
+//      #define CRAFTCOREI_API __attribute__ ((dllimport))
+//    #else
+//      #define CRAFTCOREI_API __declspec(dllimport) // Note: actually gcc seems to also supports this syntax.
+//    #endif
+//  #endif
+//  #define DLL_LOCAL
+//#else
+//    #define CRAFTCOREI_API
+////  #if __GNUC__ >= 4
+////    #define DLL_PUBLIC __attribute__ ((visibility ("default")))
+////    #define DLL_LOCAL  __attribute__ ((visibility ("hidden")))
+////  #else
+////    #define DLL_PUBLIC
+////    #define DLL_LOCAL
+////  #endif
+//#endif
+
 
 #if _MSC_VER
     #include <Windows.h>
@@ -28,6 +56,14 @@
 class Context;
 class Node;
 typedef std::vector< std::shared_ptr<Node> > NodeList;
+
+
+
+// This method is used to set the logger from the main program and capture the craft-core dynamic library logs.
+extern "C"
+{
+    CRAFTCOREI_API void craft_core_log_init( axe::Kernel* log_kernel );
+}
 
 
 

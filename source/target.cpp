@@ -465,17 +465,27 @@ std::shared_ptr<Task> ObjectTarget::object( ContextPlan& ctx, const std::string&
         }
         else
         {
-            NodeList dependencies;
-
-            auto compiler = ctx.get_current_toolchain()->get_compiler();
-            compiler->set_configuration( ctx.get_current_configuration() );
-            compiler->get_compile_dependencies( dependencies, name, target, includePaths );
-
-            std::shared_ptr<Node> failed;
-            outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
-            if (outdated)
+            // Shortcut: if the source file itself is older...
+            FileTime source_time = FileGetModificationTime( name );
+            if (source_time>target_time)
             {
-                AXE_LOG("deps", axe::Level::Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+                outdated = true;
+            }
+            else
+            {
+                // Check all dependencies...
+                NodeList dependencies;
+
+                auto compiler = ctx.get_current_toolchain()->get_compiler();
+                compiler->set_configuration( ctx.get_current_configuration() );
+                compiler->get_compile_dependencies( dependencies, name, target, includePaths );
+
+                std::shared_ptr<Node> failed;
+                outdated = ctx.IsTargetOutdated( target_time, dependencies, &failed );
+                if (outdated)
+                {
+                    AXE_LOG("deps", axe::Level::Verbose, "Outdated dependency: [%s]", failed->m_absolutePath.c_str() );
+                }
             }
         }
     }

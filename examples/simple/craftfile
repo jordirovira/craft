@@ -27,18 +27,21 @@ void craft( Context& ctx )
 
     ctx.exec("test_0")
             .program("/bin/ls")
-            .args("-la")
+            .args("-lab")
             .working_folder("/home")
+            .ignore_fail(true)
             ;
 
     ctx.exec("test_1")
             .program("/bin/pwd")
+            .ignore_fail(true)
             ;
 
     // kill the program after 2 seconds instad of 10
     ctx.exec("test_2")
             .program("/bin/sleep")
             .args("10")
+            .ignore_fail(true)
             .max_time(2000)
             ;
 

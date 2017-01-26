@@ -7,7 +7,6 @@
 #include <algorithm>
 
 
-
 // Split a string with a delimit set.
 // It skips empty elements.
 inline void split(const std::string &s, std::string delims, std::vector<std::string>& elems)

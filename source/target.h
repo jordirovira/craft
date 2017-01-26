@@ -1,25 +1,11 @@
 #pragma once
 
-//! Dynamic link library import and export
-//! define CRAFTCOREI_BUILD when building the dynamic library
-#if _MSC_VER
-
-    #ifdef CRAFTCOREI_BUILD
-        #define CRAFTCOREI_API __declspec(dllexport)
-    #else
-        #define CRAFTCOREI_API __declspec(dllimport)
-    #endif
-
-#else
-
-    #define CRAFTCOREI_API
-
-#endif
+#include <platform.h>
 
 #include <string>
 #include <vector>
 #include <memory>
-
+#include <functional>
 
 class Toolchain;
 class Context;
@@ -37,7 +23,7 @@ public:
     CRAFTCOREI_API virtual std::shared_ptr<class BuiltTarget> build( ContextPlan& ctx ) = 0;
 
     // If the target may change across configuration options
-    CRAFTCOREI_API virtual bool is_configuration_sensitive() const {return true;}
+    virtual bool is_configuration_sensitive() const {return true;}
 
     std::string m_name;
 
@@ -241,12 +227,14 @@ private:
 class ExecTarget : public Target_BaseDefinition<ExecTarget>
 {
 public:
-    ExecTarget& program(const std::string& path);
-    ExecTarget& working_folder(const std::string& path);
-    ExecTarget& args(const std::string& args);
-    ExecTarget& max_time(int milliseconds);
-    ExecTarget& log_output(bool);
-    ExecTarget& log_error(bool);
+    CRAFTCOREI_API ExecTarget& program(const std::string& path);
+    CRAFTCOREI_API ExecTarget& working_folder(const std::string& path);
+    CRAFTCOREI_API ExecTarget& args(const std::string& args);
+    CRAFTCOREI_API ExecTarget& max_time(int milliseconds);
+    CRAFTCOREI_API ExecTarget& log_output(bool);
+    CRAFTCOREI_API ExecTarget& log_error(bool);
+    CRAFTCOREI_API ExecTarget& log_name(const char* logName);
+    CRAFTCOREI_API ExecTarget& ignore_fail(bool f);
 
     // Target interface
     std::shared_ptr<class BuiltTarget> build( ContextPlan& ctx ) override;
@@ -259,5 +247,7 @@ private:
     int m_maxTimeMilliseconds=0;
     bool m_logOutput = true;
     bool m_logError = true;
+    std::string m_logName = "exec";
+    bool m_ignoreFail = false;
 };
 
