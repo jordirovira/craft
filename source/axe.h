@@ -174,7 +174,7 @@ namespace axe
         Level m_level;
         EventType m_type;
         std::string m_category;
-        std::string m_message;        
+        std::string m_message;
         std::vector<uint8_t> m_data;
 
         void EncodeStringData( const std::string& value )
@@ -186,11 +186,31 @@ namespace axe
             }
         }
 
+        void DecodeStringData( std::string& value ) const
+        {
+            value.resize(m_data.size());
+            if (m_data.size())
+            {
+                memcpy(&value[0],&m_data[0],m_data.size());
+            }
+        }
+
         void EncodeTimeData( const std::time_t& value )
         {
             uint64_t seconds = (uint64_t)value;
             m_data.resize(sizeof(seconds));
             memcpy(&m_data[0],&seconds,sizeof(seconds));
+        }
+
+        void DecodeTimeData( std::time_t& value ) const
+        {
+            value = 0;
+            if ( m_data.size()==sizeof(uint64_t) )
+            {
+                uint64_t seconds;
+                memcpy(&seconds,&m_data[0],sizeof(seconds));
+                value = (time_t)seconds;
+            }
         }
 
         void EncodeIntData( int64_t value )
@@ -199,10 +219,28 @@ namespace axe
             memcpy(&m_data[0],&value,sizeof(value));
         }
 
+        void DecodeIntData( int64_t& value ) const
+        {
+            value = 0;
+            if ( m_data.size()==sizeof(value) )
+            {
+                 memcpy(&value,&m_data[0],sizeof(value));
+            }
+        }
+
         void EncodeFloatData( float value )
         {
             m_data.resize(sizeof(value));
             memcpy(&m_data[0],&value,sizeof(value));
+        }
+
+        void DecodeFloatData( float& value ) const
+        {
+            value = 0.0f;
+            if ( m_data.size()==sizeof(value) )
+            {
+                memcpy(&value,&m_data[0],sizeof(value));
+            }
         }
 
      };
@@ -228,20 +266,78 @@ namespace axe
                 printf( "[%8s] %s\n", e.m_category.c_str(), e.m_message.c_str() );
                 fflush(stdout);
             }
+            else if (e.m_type==EventType::IntValue)
+            {
+                int64_t v = 0;
+                e.DecodeIntData(v);
+                printf( "[%8s] (int) %s : %lld\n", e.m_category.c_str(), e.m_message.c_str(), v );
+                fflush(stdout);
+            }
         }
     };
 
     class FileBin : public Bin
     {
-    public:
+    protected:
         FILE* m_pFile = nullptr;
         uint64_t m_writtenSize = 0;
-        uint64_t m_writeLimit = 256*1024*1024;
+        uint64_t m_writeLimit = 64*1024*1024;
+
+        uint8_t m_fileBuffer[1024*1024];
+        uint32_t m_bufferPtr=0;
+        uint32_t m_bufferData=0;
 
 #define AXE_FILEBIN_VERSION     2
 #define AXE_FILEBIN_HEADER      "AxeLogBinaryFile"
 
-        FileBin(const char* strFileName="axe.log")
+
+        bool file_write(const void* src, int size)
+        {
+            if (!m_pFile) return false;
+
+            // does it fit?
+            int dataLeft = sizeof(m_fileBuffer)-m_bufferPtr;
+            if (dataLeft<size)
+            {
+                flush_write_buffer();
+            }
+
+            // big write?
+            if (size>sizeof(m_fileBuffer))
+            {
+                // direct write
+                int written = (int)fwrite( src, size, 1 , m_pFile );
+                if (written!=1)
+                {
+                    fclose(m_pFile);
+                    m_pFile = nullptr;
+                    return false;
+                }
+                return true;
+            }
+
+            memcpy(&m_fileBuffer[m_bufferPtr], src, size);
+            m_bufferPtr+=size;
+            return true;
+        }
+
+        void flush_write_buffer()
+        {
+            if (m_pFile && m_bufferPtr)
+            {
+                fwrite( m_fileBuffer, 1, m_bufferPtr, m_pFile );
+                m_bufferPtr = 0;
+            }
+        }
+
+
+        FileBin()
+        {
+        }
+
+    public:
+
+        FileBin(const char* strFileName)
         {
             m_pFile = fopen( strFileName, "wb" );
             if( !m_pFile )
@@ -267,6 +363,7 @@ namespace axe
         {
             if (m_pFile)
             {
+                flush_write_buffer();
                 fclose(m_pFile);
             }
         }
@@ -291,131 +388,34 @@ namespace axe
                 }
                 else
                 {
-                    fwrite( &eventSize, sizeof(uint64_t), 1 , m_pFile );
+                    file_write( &eventSize, sizeof(uint64_t) );
 
-                    fwrite( &e.m_time, sizeof(uint64_t), 1 , m_pFile );
-                    fwrite( &e.m_thread, sizeof(uint32_t), 1 , m_pFile );
-                    fwrite( &e.m_level, sizeof(Level), 1 , m_pFile );
-                    fwrite( &e.m_type, sizeof(EventType), 1 , m_pFile );
+                    file_write( &e.m_time, sizeof(uint64_t) );
+                    file_write( &e.m_thread, sizeof(uint32_t) );
+                    file_write( &e.m_level, sizeof(Level) );
+                    file_write( &e.m_type, sizeof(EventType) );
 
                     uint32_t s;
 
                     s = (uint32_t)e.m_category.size();
-                    fwrite( &s, sizeof(uint32_t), 1 , m_pFile );
-                    if (s>0) fwrite( &e.m_category[0], s, 1 , m_pFile );
+                    file_write( &s, sizeof(uint32_t) );
+                    if (s>0) file_write( &e.m_category[0], s );
 
                     s = (uint32_t)e.m_message.size();
-                    fwrite( &s, sizeof(uint32_t), 1 , m_pFile );
-                    if (s>0) fwrite( &e.m_message[0], s, 1 , m_pFile );
+                    file_write( &s, sizeof(uint32_t) );
+                    if (s>0) file_write( &e.m_message[0], s );
 
                     s = (uint32_t)e.m_data.size();
-                    fwrite( &s, sizeof(uint32_t), 1 , m_pFile );
-                    if (s>0) fwrite( &e.m_data[0], s, 1 , m_pFile );
+                    file_write( &s, sizeof(uint32_t) );
+                    if (s>0) file_write( &e.m_data[0], s );
 
                     m_writtenSize += sizeof(uint64_t)+eventSize;
                 }
             }
         }
 
-        static bool LoadEvents(const char* filePath, std::vector<Event>& result)
-        {
-            FILE* file = fopen( filePath, "rb" );
-            if( !file )
-            {
-                return false;
-            }
 
-            char header[16];
-            int read = (int)fread( header, 16, 1 , file );
-            if (read!=1)
-            {
-                fclose(file);
-                return false;
-            }
-
-            if (memcmp(header,AXE_FILEBIN_HEADER,16))
-            {
-                fclose(file);
-                return false;
-            }
-
-            uint32_t version=0;
-            read = (int)fread( &version, sizeof(uint32_t), 1 , file );
-            if (read!=1)
-            {
-                fclose(file);
-                return false;
-            }
-
-            if (version!=AXE_FILEBIN_VERSION)
-            {
-                fclose(file);
-                return false;
-            }
-
-            while (true)
-            {
-                // read one event
-
-                uint64_t eventSize;
-                read = (int)fread( &eventSize, sizeof(uint64_t), 1 , file );
-                if (read!=1) break;
-
-                result.push_back(Event());
-                auto& e = result.back();
-
-                read = (int)fread( &e.m_time, sizeof(uint64_t), 1 , file );
-                if (read!=1) break;
-
-                read = (int)fread( &e.m_thread, sizeof(uint32_t), 1 , file );
-                if (read!=1) break;
-
-                read = (int)fread( &e.m_level, sizeof(Level), 1 , file );
-                if (read!=1) break;
-
-                read = (int)fread( &e.m_type, sizeof(EventType), 1 , file );
-                if (read!=1) break;
-
-                // category
-                int32_t textSize=0;
-                read = (int)fread( &textSize, sizeof(int32_t), 1 , file );
-                if (read!=1) break;
-
-                if (textSize)
-                {
-                    e.m_category.resize(textSize);
-                    read = (int)fread( &e.m_category[0], textSize, 1 , file );
-                    if (read!=1) break;
-                }
-
-                // message
-                read = (int)fread( &textSize, sizeof(int32_t), 1 , file );
-                if (read!=1) break;
-
-                if (textSize)
-                {
-                    e.m_message.resize(textSize);
-                    read = (int)fread( &e.m_message[0], textSize, 1 , file );
-                    if (read!=1) break;
-                }
-
-                // data
-                read = (int)fread( &textSize, sizeof(int32_t), 1 , file );
-                if (read!=1) break;
-
-                if (textSize)
-                {
-                    e.m_data.resize(textSize);
-                    read = (int)fread( &e.m_data[0], textSize, 1 , file );
-                    if (read!=1) break;
-                }
-            }
-
-
-            fclose(file);
-            return true;
-        }
-    };
+     };
 
     class Kernel
     {
@@ -773,8 +773,8 @@ namespace axe
 #define AXE_DECLARE_CATEGORY(TAG,NAME)
 
 #define AXE_STRING_VALUE(CAT,LEVEL,KEY,VALUE)       axe::log_string_value(CAT,LEVEL,KEY,VALUE)
-#define AXE_INT_VALUE(CAT,LEVEL,KEY,VALUE)       axe::log_int_value(CAT,LEVEL,KEY,VALUE)
-#define AXE_FLOAT_VALUE(CAT,LEVEL,KEY,VALUE)       axe::log_float_value(CAT,LEVEL,KEY,VALUE)
+#define AXE_INT_VALUE(CAT,LEVEL,KEY,VALUE)          axe::log_int_value(CAT,LEVEL,KEY,VALUE)
+#define AXE_FLOAT_VALUE(CAT,LEVEL,KEY,VALUE)        axe::log_float_value(CAT,LEVEL,KEY,VALUE)
 
 #endif //AXE_ENABLE
 

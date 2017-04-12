@@ -338,7 +338,7 @@ int Run( const std::string& workingPath,
     std::stringstream logstr;
     logstr << command << " ";
     for( auto s: arguments) { logstr << s << " "; }
-    AXE_LOG( "run", axe::Level::Verbose, logstr.str() );
+    AXE_STRING_VALUE( "craft", axe::Level::Info, "run", logstr.str().c_str() );
 
     if (killedFlag)
     {
